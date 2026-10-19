@@ -1,208 +1,224 @@
 /**
- * BoxTrack — Google Apps Script Backend
- * ======================================
+ * BoxTrack — Google Apps Script Backend  (v2)
+ * =============================================
  * Deploy as a Web App:
- *   1. Open Apps Script (script.google.com), paste this file.
- *   2. Click "Deploy" → "New deployment" → type: "Web app"
- *   3. Execute as: Me | Who has access: Anyone
- *   4. Copy the deployment URL and paste it into index.html → CONFIG.GAS_URL
+ *   1. Paste this into script.google.com
+ *   2. Deploy → New deployment → Web app
+ *      Execute as: Me | Access: Anyone
+ *   3. Copy the exec URL → paste into index.html CONFIG.GAS_URL
  *
- * Google Sheet structure (one sheet named "Inventory"):
- * ┌──────────┬──────────────┬─────────────┬────────────────────────┬─────┐
- * │  Box ID  │  Shelf/Loc   │  SKU        │  Product Name          │ Qty │
- * ├──────────┼──────────────┼─────────────┼────────────────────────┼─────┤
- * │  BOX-01  │  Shelf A1    │  SKU-1001   │  Widget Alpha          │  42 │
- * │  BOX-01  │  Shelf A1    │  SKU-1002   │  Widget Beta           │   3 │
- * │  BOX-02  │  Shelf B3    │  SKU-2001   │  Gadget Pro            │  17 │
- * └──────────┴──────────────┴─────────────┴────────────────────────┴─────┘
- *
- * Row 1 = header row (not used in data processing, just for your reference).
- * Columns: A=BoxID, B=Location, C=SKU, D=ProductName, E=Qty
+ * Google Sheet: one tab named "Inventory"
+ * Columns: A=BoxID | B=Location | C=SKU | D=ProductName | E=Qty
+ * Row 1 = header (skipped automatically)
  */
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
-const SHEET_NAME = 'Inventory';
-const COL = { BOX: 1, LOCATION: 2, SKU: 3, NAME: 4, QTY: 5 }; // 1-indexed
+var SHEET_NAME = 'Inventory';
+var COL = { BOX: 1, LOCATION: 2, SKU: 3, NAME: 4, QTY: 5 }; // 1-indexed
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function getSheet() {
-  return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) throw new Error('Sheet "' + SHEET_NAME + '" not found. Run seedSampleData() first or rename your tab to "Inventory".');
+  return sheet;
 }
 
-function jsonResponse(data, statusCode) {
-  var output = ContentService
+function jsonOut(data) {
+  return ContentService
     .createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
-  return output;
 }
 
-function corsHeaders() {
-  // Note: GAS doesn't fully support custom response headers for CORS,
-  // but returning JSON with Content-Type is usually sufficient for
-  // fetch() calls with mode:'cors' or no-cors.
-  return {};
-}
-
-// ─── GET — Retrieve all products for a Box ID ─────────────────────────────────
-/**
- * Called by the web app when the user scans a QR code:
- *   GET ?box=BOX-01
- *
- * Returns:
- * {
- *   "boxId": "BOX-01",
- *   "location": "Shelf A1",
- *   "products": [
- *     { "sku": "SKU-1001", "name": "Widget Alpha", "qty": 42 },
- *     { "sku": "SKU-1002", "name": "Widget Beta",  "qty": 3  }
- *   ]
- * }
- */
+// ─── GET ROUTER ───────────────────────────────────────────────────────────────
 function doGet(e) {
   try {
+    var action = (e.parameter && e.parameter.action) ? e.parameter.action : null;
+
+    // ── GET ?action=all  →  return every row (used by client-side search)
+    if (action === 'all') return handleGetAll();
+
+    // ── GET ?box=BOX-01  →  return products for a specific box
     var boxId = (e.parameter && e.parameter.box)
       ? e.parameter.box.toString().trim().toUpperCase()
       : null;
 
-    if (!boxId) {
-      return jsonResponse({ error: 'Missing ?box= parameter' });
-    }
+    if (boxId) return handleGetBox(boxId);
 
-    var sheet = getSheet();
-    if (!sheet) {
-      return jsonResponse({ error: 'Sheet "' + SHEET_NAME + '" not found' });
-    }
-
-    var data = sheet.getDataRange().getValues();
-    var products = [];
-    var location = '';
-
-    // Skip header row (index 0)
-    for (var i = 1; i < data.length; i++) {
-      var row = data[i];
-      var rowBox = String(row[COL.BOX - 1]).trim().toUpperCase();
-
-      if (rowBox === boxId) {
-        if (!location) location = String(row[COL.LOCATION - 1]).trim();
-        products.push({
-          sku:  String(row[COL.SKU  - 1]).trim(),
-          name: String(row[COL.NAME - 1]).trim(),
-          qty:  Number(row[COL.QTY  - 1]) || 0,
-        });
-      }
-    }
-
-    return jsonResponse({
-      boxId:    boxId,
-      location: location || 'Unknown',
-      products: products,
-    });
-
+    return jsonOut({ error: 'Missing parameter: use ?box=BOX-01 or ?action=all' });
   } catch (err) {
-    return jsonResponse({ error: err.message });
+    return jsonOut({ error: err.message });
   }
 }
 
-// ─── POST — Update stock quantities ──────────────────────────────────────────
 /**
- * Called when the user taps "Confirm Changes".
- *
- * Request body (JSON string, Content-Type: text/plain to avoid CORS preflight):
- * {
- *   "boxId": "BOX-01",
- *   "updates": [
- *     { "sku": "SKU-1001", "newQty": 40 },
- *     { "sku": "SKU-1002", "newQty": 5  }
- *   ]
- * }
- *
- * Returns:
- * { "success": true, "updated": 2 }
+ * GET ?box=BOX-01
+ * Returns: { boxId, location, products: [{sku, name, qty}] }
  */
+function handleGetBox(boxId) {
+  var sheet = getSheet();
+  var data = sheet.getDataRange().getValues();
+  var products = [];
+  var location = '';
+
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (!row[COL.BOX - 1]) continue; // skip empty rows
+    var rowBox = String(row[COL.BOX - 1]).trim().toUpperCase();
+    if (rowBox === boxId) {
+      if (!location) location = String(row[COL.LOCATION - 1]).trim();
+      products.push({
+        sku:  String(row[COL.SKU  - 1]).trim(),
+        name: String(row[COL.NAME - 1]).trim(),
+        qty:  Number(row[COL.QTY  - 1]) || 0,
+      });
+    }
+  }
+
+  return jsonOut({ boxId: boxId, location: location || 'Unknown', products: products });
+}
+
+/**
+ * GET ?action=all
+ * Returns: { rows: [{boxId, location, sku, name, qty}] }
+ * Used by the client-side search to avoid per-keystroke server calls.
+ */
+function handleGetAll() {
+  var sheet = getSheet();
+  var data = sheet.getDataRange().getValues();
+  var rows = [];
+
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (!row[COL.BOX - 1]) continue;
+    rows.push({
+      boxId:    String(row[COL.BOX      - 1]).trim().toUpperCase(),
+      location: String(row[COL.LOCATION - 1]).trim(),
+      sku:      String(row[COL.SKU      - 1]).trim(),
+      name:     String(row[COL.NAME     - 1]).trim(),
+      qty:      Number(row[COL.QTY      - 1]) || 0,
+    });
+  }
+
+  return jsonOut({ rows: rows });
+}
+
+// ─── POST ROUTER ──────────────────────────────────────────────────────────────
 function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
-    var boxId  = String(body.boxId).trim().toUpperCase();
-    var updates = body.updates || []; // [{ sku, newQty }]
+    var action = body.action || 'update'; // backwards-compatible default
 
-    if (!boxId || updates.length === 0) {
-      return jsonResponse({ error: 'Invalid payload' });
-    }
+    if (action === 'update')     return handleUpdate(body);
+    if (action === 'addProduct') return handleAddProduct(body);
 
-    // Build a lookup map from SKU → newQty
-    var updateMap = {};
-    updates.forEach(function(u) {
-      updateMap[String(u.sku).trim()] = Number(u.newQty);
-    });
-
-    var sheet = getSheet();
-    if (!sheet) {
-      return jsonResponse({ error: 'Sheet "' + SHEET_NAME + '" not found' });
-    }
-
-    var data = sheet.getDataRange().getValues();
-    var updatedCount = 0;
-
-    for (var i = 1; i < data.length; i++) {
-      var row = data[i];
-      var rowBox = String(row[COL.BOX - 1]).trim().toUpperCase();
-      var rowSku = String(row[COL.SKU - 1]).trim();
-
-      if (rowBox === boxId && updateMap.hasOwnProperty(rowSku)) {
-        var newQty = updateMap[rowSku];
-        // Write to column E (COL.QTY = 5), row i+1 (1-indexed, skip header offset)
-        sheet.getRange(i + 1, COL.QTY).setValue(newQty);
-        updatedCount++;
-      }
-    }
-
-    return jsonResponse({ success: true, updated: updatedCount });
-
+    return jsonOut({ error: 'Unknown action: ' + action });
   } catch (err) {
-    return jsonResponse({ error: err.message });
+    return jsonOut({ error: err.message });
   }
 }
 
-// ─── OPTIONAL: Seed sample data ───────────────────────────────────────────────
 /**
- * Run this function once manually from the Apps Script editor to create
- * a sample "Inventory" sheet with demo data. Safe to skip if you already
- * have your sheet set up.
+ * POST { action:'update', boxId, updates:[{sku, newQty}] }
+ * Updates the Qty column for existing rows.
+ * Returns: { success:true, updated:N }
+ */
+function handleUpdate(body) {
+  var boxId = String(body.boxId).trim().toUpperCase();
+  var updates = body.updates || [];
+  if (!boxId || updates.length === 0) return jsonOut({ error: 'Invalid payload' });
+
+  var updateMap = {};
+  updates.forEach(function (u) { updateMap[String(u.sku).trim()] = Number(u.newQty); });
+
+  var sheet = getSheet();
+  var data = sheet.getDataRange().getValues();
+  var count = 0;
+
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    var rowBox = String(row[COL.BOX - 1]).trim().toUpperCase();
+    var rowSku = String(row[COL.SKU - 1]).trim();
+    if (rowBox === boxId && updateMap.hasOwnProperty(rowSku)) {
+      sheet.getRange(i + 1, COL.QTY).setValue(updateMap[rowSku]);
+      count++;
+    }
+  }
+
+  return jsonOut({ success: true, updated: count });
+}
+
+/**
+ * POST { action:'addProduct', boxId, location, sku, name, qty }
+ * Appends a new row for the product.
+ * Returns: { success:true }
+ */
+function handleAddProduct(body) {
+  var boxId    = String(body.boxId   || '').trim().toUpperCase();
+  var location = String(body.location|| '').trim();
+  var sku      = String(body.sku     || '').trim().toUpperCase();
+  var name     = String(body.name    || '').trim();
+  var qty      = Number(body.qty) || 0;
+
+  if (!boxId || !sku || !name) return jsonOut({ error: 'boxId, sku and name are required' });
+
+  var sheet = getSheet();
+  var data = sheet.getDataRange().getValues();
+
+  // Reject duplicate SKU within same box
+  for (var i = 1; i < data.length; i++) {
+    var rowBox = String(data[i][COL.BOX - 1]).trim().toUpperCase();
+    var rowSku = String(data[i][COL.SKU - 1]).trim().toUpperCase();
+    if (rowBox === boxId && rowSku === sku) {
+      return jsonOut({ error: 'SKU ' + sku + ' already exists in ' + boxId });
+    }
+    // Infer location from existing rows for this box if not provided
+    if (!location && rowBox === boxId) {
+      location = String(data[i][COL.LOCATION - 1]).trim();
+    }
+  }
+
+  // Append new row
+  sheet.appendRow([boxId, location, sku, name, qty]);
+
+  return jsonOut({ success: true });
+}
+
+// ─── SEED SAMPLE DATA (run once from the editor) ──────────────────────────────
+/**
+ * Run this function ONCE from the Apps Script editor to create sample data.
+ * It will:
+ *   1. Create (or clear) the "Inventory" sheet
+ *   2. Populate it with demo boxes and products
  */
 function seedSampleData() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SHEET_NAME);
-
-  if (!sheet) {
-    sheet = ss.insertSheet(SHEET_NAME);
-  }
-
+  if (!sheet) sheet = ss.insertSheet(SHEET_NAME);
   sheet.clearContents();
 
   var headers = ['Box ID', 'Location', 'SKU', 'Product Name', 'Qty'];
   var rows = [
-    ['BOX-01', 'Shelf A1', 'SKU-1001', 'Widget Alpha',      42],
-    ['BOX-01', 'Shelf A1', 'SKU-1002', 'Widget Beta',        3],
-    ['BOX-01', 'Shelf A1', 'SKU-1003', 'Connector Type-C',  18],
-    ['BOX-02', 'Shelf B3', 'SKU-2001', 'Gadget Pro',        17],
-    ['BOX-02', 'Shelf B3', 'SKU-2002', 'Gadget Lite',        0],
-    ['BOX-03', 'Shelf C2', 'SKU-3001', 'Sensor Module X',   25],
-    ['BOX-03', 'Shelf C2', 'SKU-3002', 'Sensor Module Y',    4],
+    ['BOX-01', 'Shelf A1', 'SKU-1001', 'Widget Alpha',       42],
+    ['BOX-01', 'Shelf A1', 'SKU-1002', 'Widget Beta',         3],
+    ['BOX-01', 'Shelf A1', 'SKU-1003', 'Connector Type-C',   18],
+    ['BOX-02', 'Shelf B3', 'SKU-2001', 'Gadget Pro',         17],
+    ['BOX-02', 'Shelf B3', 'SKU-2002', 'Gadget Lite',         0],
+    ['BOX-03', 'Shelf C2', 'SKU-3001', 'Sensor Module X',    25],
+    ['BOX-03', 'Shelf C2', 'SKU-3002', 'Sensor Module Y',     4],
+    ['BOX-04', 'Shelf D1', 'SKU-4001', 'Power Adapter 12V',  10],
+    ['BOX-04', 'Shelf D1', 'SKU-4002', 'USB Hub 4-Port',      7],
   ];
 
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
 
-  // Format header row
   var headerRange = sheet.getRange(1, 1, 1, headers.length);
   headerRange.setFontWeight('bold');
   headerRange.setBackground('#4f46e5');
   headerRange.setFontColor('#ffffff');
 
-  // Auto-resize columns
-  for (var c = 1; c <= headers.length; c++) {
-    sheet.autoResizeColumn(c);
-  }
+  for (var c = 1; c <= headers.length; c++) sheet.autoResizeColumn(c);
 
-  Logger.log('Sample data seeded successfully.');
+  Logger.log('seedSampleData: ' + rows.length + ' rows written to "' + SHEET_NAME + '".');
 }

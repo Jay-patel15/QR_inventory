@@ -6,12 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#0f172a" />
   <meta name="description"
-    content="QR-based physical box inventory tracker — scan a QR code to view and update stock in real time." />
+    content="QR-based physical box inventory tracker — scan, search and update stock in real time." />
   <title>BoxTrack · QR Inventory</title>
-
-  <!-- QR Code library (only external dependency) -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-
   <style>
     /* ─────────────────────────────────────────────
        DESIGN TOKENS
@@ -20,6 +17,7 @@
       --bg: #0f172a;
       --surface: #1e293b;
       --surface-2: #273449;
+      --surface-3: #1a2540;
       --border: #334155;
       --accent: #6366f1;
       --accent-glow: rgba(99, 102, 241, 0.35);
@@ -29,6 +27,7 @@
       --red: #ef4444;
       --red-dark: #dc2626;
       --amber: #f59e0b;
+      --teal: #14b8a6;
       --text: #f1f5f9;
       --text-muted: #94a3b8;
       --text-dim: #64748b;
@@ -41,9 +40,6 @@
       --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    /* ─────────────────────────────────────────────
-       RESET & BASE
-    ───────────────────────────────────────────── */
     *,
     *::before,
     *::after {
@@ -66,23 +62,19 @@
       overscroll-behavior: none;
     }
 
-    /* ─────────────────────────────────────────────
-       LAYOUT
-    ───────────────────────────────────────────── */
+    /* ─── LAYOUT ─── */
     #app {
       max-width: 540px;
       margin: 0 auto;
-      padding: 0 16px 96px;
+      padding: 0 16px 120px;
     }
 
-    /* ─────────────────────────────────────────────
-       HEADER
-    ───────────────────────────────────────────── */
+    /* ─── HEADER ─── */
     .app-header {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 20px 0 24px;
+      padding: 20px 0 20px;
     }
 
     .app-logo {
@@ -110,9 +102,46 @@
       margin-top: 1px;
     }
 
-    /* ─────────────────────────────────────────────
-       CARD
-    ───────────────────────────────────────────── */
+    /* ─── HOME TAB NAV ─── */
+    .tab-nav {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 4px;
+      margin-bottom: 20px;
+      gap: 3px;
+    }
+
+    .tab-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      padding: 10px 6px;
+      border-radius: calc(var(--radius-lg) - 6px);
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-family: var(--font);
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .tab-btn .tab-icon {
+      font-size: 1.2rem;
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, var(--accent), #818cf8);
+      color: #fff;
+    }
+
+    /* ─── CARD ─── */
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -131,9 +160,7 @@
       margin-bottom: 12px;
     }
 
-    /* ─────────────────────────────────────────────
-       BADGE
-    ───────────────────────────────────────────── */
+    /* ─── BADGE ─── */
     .badge {
       display: inline-flex;
       align-items: center;
@@ -163,9 +190,13 @@
       border: 1px solid rgba(245, 158, 11, 0.25);
     }
 
-    /* ─────────────────────────────────────────────
-       BUTTONS
-    ───────────────────────────────────────────── */
+    .badge-teal {
+      background: rgba(20, 184, 166, 0.15);
+      color: #5eead4;
+      border: 1px solid rgba(20, 184, 166, 0.25);
+    }
+
+    /* ─── BUTTONS ─── */
     .btn {
       display: inline-flex;
       align-items: center;
@@ -207,6 +238,13 @@
       box-shadow: 0 0 16px rgba(34, 197, 94, 0.3);
     }
 
+    .btn-teal {
+      background: linear-gradient(135deg, var(--teal), #2dd4bf);
+      color: #022c22;
+      width: 100%;
+      box-shadow: 0 0 16px rgba(20, 184, 166, 0.3);
+    }
+
     .btn-outline {
       background: transparent;
       color: var(--text-muted);
@@ -217,12 +255,6 @@
     .btn-outline:hover {
       background: var(--surface-2);
       color: var(--text);
-    }
-
-    .btn-sm {
-      min-height: 44px;
-      padding: 0 14px;
-      font-size: 0.85rem;
     }
 
     .btn-icon {
@@ -254,12 +286,41 @@
       background: rgba(239, 68, 68, 0.28);
     }
 
-    /* ─────────────────────────────────────────────
-       INPUT
-    ───────────────────────────────────────────── */
+    /* FAB */
+    .fab {
+      position: fixed;
+      bottom: 84px;
+      right: 20px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--teal), #2dd4bf);
+      color: #022c22;
+      font-size: 1.6rem;
+      font-weight: 300;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(20, 184, 166, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform var(--transition), box-shadow var(--transition);
+      z-index: 90;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .fab:active {
+      transform: scale(0.93);
+    }
+
+    .fab:hover {
+      box-shadow: 0 6px 28px rgba(20, 184, 166, 0.6);
+    }
+
+    /* ─── INPUTS ─── */
     .input-wrap {
       position: relative;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
 
     .input-label {
@@ -296,9 +357,51 @@
       box-shadow: 0 0 0 3px var(--accent-glow);
     }
 
-    /* ─────────────────────────────────────────────
-       BOX INFO BAR
-    ───────────────────────────────────────────── */
+    .input-field[readonly] {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* Search field with icon */
+    .search-wrap {
+      position: relative;
+      margin-bottom: 16px;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      font-size: 1.1rem;
+      pointer-events: none;
+    }
+
+    .search-field {
+      width: 100%;
+      height: 52px;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 1rem;
+      padding: 0 16px 0 44px;
+      outline: none;
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+
+    .search-field::placeholder {
+      color: var(--text-dim);
+    }
+
+    .search-field:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    /* ─── BOX HERO ─── */
     .box-hero {
       background: linear-gradient(135deg, #1e293b 0%, #0f2040 100%);
       border: 1px solid rgba(99, 102, 241, 0.3);
@@ -330,18 +433,7 @@
       background-clip: text;
     }
 
-    .box-location {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--text-muted);
-      font-size: 0.85rem;
-      margin-top: 6px;
-    }
-
-    /* ─────────────────────────────────────────────
-       PRODUCT ROW
-    ───────────────────────────────────────────── */
+    /* ─── PRODUCT ROWS ─── */
     .product-list {
       display: flex;
       flex-direction: column;
@@ -400,7 +492,6 @@
       color: var(--red);
     }
 
-    /* COUNTER (edit mode) */
     .product-counter {
       display: flex;
       align-items: center;
@@ -416,9 +507,52 @@
       letter-spacing: -0.02em;
     }
 
-    /* ─────────────────────────────────────────────
-       QR SECTION
-    ───────────────────────────────────────────── */
+    /* ─── SEARCH RESULTS ─── */
+    .search-result-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      margin-bottom: 12px;
+      animation: fadeIn 250ms ease both;
+    }
+
+    .search-result-box-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      cursor: pointer;
+    }
+
+    .search-result-box-id {
+      font-size: 1rem;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      background: linear-gradient(135deg, #e0e7ff, #a5b4fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .search-result-product {
+      background: var(--surface-2);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .highlight {
+      background: rgba(99, 102, 241, 0.25);
+      color: #c7d2fe;
+      border-radius: 3px;
+      padding: 0 2px;
+    }
+
+    /* ─── QR OUTPUT ─── */
     .qr-wrap {
       display: flex;
       flex-direction: column;
@@ -456,9 +590,181 @@
       max-width: 280px;
     }
 
-    /* ─────────────────────────────────────────────
-       SKELETON LOADER
-    ───────────────────────────────────────────── */
+    /* ─── CAMERA SCANNER ─── */
+    .scanner-wrap {
+      position: relative;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      background: #000;
+      aspect-ratio: 1;
+      max-width: 340px;
+      margin: 0 auto;
+    }
+
+    #scanner-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .scanner-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .scanner-frame {
+      width: 65%;
+      height: 65%;
+      position: relative;
+    }
+
+    .scanner-frame::before,
+    .scanner-frame::after {
+      content: '';
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-color: var(--accent);
+      border-style: solid;
+    }
+
+    .scanner-frame::before {
+      top: 0;
+      left: 0;
+      border-width: 3px 0 0 3px;
+      border-radius: 4px 0 0 0;
+    }
+
+    .scanner-frame::after {
+      bottom: 0;
+      right: 0;
+      border-width: 0 3px 3px 0;
+      border-radius: 0 0 4px 0;
+    }
+
+    .scanner-frame-corner-tr,
+    .scanner-frame-corner-bl {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-color: var(--accent);
+      border-style: solid;
+    }
+
+    .scanner-frame-corner-tr {
+      top: 0;
+      right: 0;
+      border-width: 3px 3px 0 0;
+      border-radius: 0 4px 0 0;
+    }
+
+    .scanner-frame-corner-bl {
+      bottom: 0;
+      left: 0;
+      border-width: 0 0 3px 3px;
+      border-radius: 0 0 0 4px;
+    }
+
+    .scanner-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      animation: scanLine 2s linear infinite;
+      border-radius: 2px;
+    }
+
+    @keyframes scanLine {
+      0% { top: 0%; opacity: 1; }
+      95% { opacity: 1; }
+      100% { top: 100%; opacity: 0; }
+    }
+
+    .scanner-status {
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 12px;
+      min-height: 20px;
+    }
+
+    .scanner-detected {
+      color: var(--green);
+      font-weight: 600;
+      animation: pulse 0.4s ease;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    /* ─── BOTTOM SHEET MODAL ─── */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      opacity: 0;
+      transition: opacity 300ms ease;
+      pointer-events: none;
+    }
+
+    .modal-backdrop.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .bottom-sheet {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-radius: 24px 24px 0 0;
+      padding: 12px 20px 32px;
+      padding-bottom: calc(32px + env(safe-area-inset-bottom));
+      z-index: 201;
+      transform: translateY(100%);
+      transition: transform 350ms cubic-bezier(0.34, 1.1, 0.64, 1);
+      max-width: 540px;
+      margin: 0 auto;
+    }
+
+    .bottom-sheet.open {
+      transform: translateY(0);
+    }
+
+    .sheet-handle {
+      width: 40px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 0 auto 16px;
+    }
+
+    .sheet-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .sheet-subtitle {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+
+    /* ─── SKELETON ─── */
     .skeleton {
       background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%);
       background-size: 200% 100%;
@@ -477,9 +783,13 @@
       border-radius: var(--radius);
     }
 
-    /* ─────────────────────────────────────────────
-       TOAST
-    ───────────────────────────────────────────── */
+    @keyframes shimmer {
+      to {
+        background-position: -200% 0;
+      }
+    }
+
+    /* ─── TOAST ─── */
     #toast {
       position: fixed;
       bottom: 32px;
@@ -514,9 +824,7 @@
       border-color: rgba(239, 68, 68, 0.4);
     }
 
-    /* ─────────────────────────────────────────────
-       EMPTY STATE
-    ───────────────────────────────────────────── */
+    /* ─── EMPTY STATE ─── */
     .empty-state {
       text-align: center;
       padding: 48px 24px;
@@ -532,9 +840,7 @@
       font-size: 0.9rem;
     }
 
-    /* ─────────────────────────────────────────────
-       STICKY ACTION BAR
-    ───────────────────────────────────────────── */
+    /* ─── STICKY ACTION BAR ─── */
     .action-bar {
       position: fixed;
       bottom: 0;
@@ -551,15 +857,7 @@
       z-index: 100;
     }
 
-    /* ─────────────────────────────────────────────
-       ANIMATIONS
-    ───────────────────────────────────────────── */
-    @keyframes shimmer {
-      to {
-        background-position: -200% 0;
-      }
-    }
-
+    /* ─── ANIMATIONS ─── */
     @keyframes fadeSlideIn {
       from {
         opacity: 0;
@@ -588,18 +886,60 @@
       animation: fadeIn 300ms ease both;
     }
 
-    /* ─────────────────────────────────────────────
-       DIVIDER
-    ───────────────────────────────────────────── */
+    /* ─── DIVIDER ─── */
     .divider {
       height: 1px;
       background: var(--border);
       margin: 16px 0;
     }
 
-    /* ─────────────────────────────────────────────
-       PRINT STYLES
-    ───────────────────────────────────────────── */
+    /* ─── SECTION HEADER ─── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+    }
+
+    /* ─── SPIN ─── */
+    .spin {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* ─── ERROR BANNER ─── */
+    .error-banner {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      font-size: 0.88rem;
+      color: #fca5a5;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    /* ─── PRINT STYLES ─── */
     @media print {
       body {
         background: #fff;
@@ -653,53 +993,14 @@
       display: none;
     }
 
-    /* ─────────────────────────────────────────────
-       SECTION HEADER
-    ───────────────────────────────────────────── */
-    .section-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
-    }
-
-    .section-title {
-      font-size: 0.8rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--text-muted);
-    }
-
-    /* ─────────────────────────────────────────────
-       SPIN
-    ───────────────────────────────────────────── */
-    .spin {
-      display: inline-block;
-      width: 16px;
-      height: 16px;
-      border: 2px solid rgba(255, 255, 255, 0.3);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-    }
-
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-
-    /* ─────────────────────────────────────────────
-       ERROR BANNER
-    ───────────────────────────────────────────── */
-    .error-banner {
-      background: rgba(239, 68, 68, 0.12);
-      border: 1px solid rgba(239, 68, 68, 0.3);
+    /* ─── UNSUPPORTED NOTICE ─── */
+    .notice {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.3);
       border-radius: var(--radius);
       padding: 14px 16px;
-      font-size: 0.88rem;
-      color: #fca5a5;
+      font-size: 0.85rem;
+      color: #fcd34d;
       display: flex;
       align-items: flex-start;
       gap: 10px;
@@ -708,9 +1009,7 @@
 </head>
 
 <body>
-
   <div id="app">
-    <!-- Header (always visible) -->
     <header class="app-header no-print">
       <div class="app-logo">&#128230;</div>
       <div>
@@ -718,45 +1017,77 @@
         <div class="app-subtitle">QR Inventory System</div>
       </div>
     </header>
-
-    <!-- Dynamic content rendered by JS -->
     <main id="main"></main>
   </div>
 
-  <!-- Toast notification -->
+  <!-- Toast -->
   <div id="toast" role="status" aria-live="polite"></div>
 
+  <!-- Modal backdrop -->
+  <div id="modal-backdrop" class="modal-backdrop" onclick="closeModal()"></div>
+
+  <!-- Add Product bottom sheet -->
+  <div id="add-product-sheet" class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Add Product to Box</div>
+    <div class="sheet-subtitle" id="sheet-box-label">Adding to BOX-01</div>
+
+    <div class="input-wrap">
+      <label class="input-label" for="ap-sku">SKU / Product ID</label>
+      <input class="input-field" id="ap-sku" type="text" placeholder="e.g. SKU-1004"
+        autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" maxlength="32" />
+    </div>
+    <div class="input-wrap">
+      <label class="input-label" for="ap-name">Product Name</label>
+      <input class="input-field" id="ap-name" type="text" placeholder="e.g. Widget Gamma"
+        autocomplete="off" spellcheck="false" maxlength="64" />
+    </div>
+    <div class="input-wrap">
+      <label class="input-label" for="ap-qty">Initial Quantity</label>
+      <input class="input-field" id="ap-qty" type="number" placeholder="0" min="0" max="99999" value="0" />
+    </div>
+    <div style="height:4px"></div>
+    <button class="btn btn-teal" id="ap-submit-btn" onclick="submitAddProduct()">
+      &#43; Add Product
+    </button>
+    <div style="height:10px"></div>
+    <button class="btn btn-outline" onclick="closeModal()" style="min-height:44px;font-size:0.875rem">
+      Cancel
+    </button>
+  </div>
+
+  <!-- Print-only label -->
+  <div id="print-label" class="print-label" style="display:none">
+    <div id="qrcode-print"></div>
+    <div class="print-box-id" id="print-box-id-text"></div>
+  </div>
+
   <script>
-    /* =====================================================
-       CONFIG
-       Update GAS_URL after deploying your Google Apps Script.
-       ===================================================== */
+    /* ─────────────────────────────────────────────
+       CONFIG  — replace with your deployed GAS URL
+    ───────────────────────────────────────────── */
     const CONFIG = {
       GAS_URL: 'https://script.google.com/macros/s/AKfycbwqpa3qCN1LWV4oVUPPXJ4xbNcSlYthlec4MHrKpSijw6p3jTYT1M8BbHODiHPWbdjR/exec',
       LOW_STOCK_THRESHOLD: 5,
     };
 
-    /* =====================================================
+    /* ─────────────────────────────────────────────
        UTILS
-       ===================================================== */
+    ───────────────────────────────────────────── */
     const $ = (sel, ctx) => (ctx || document).querySelector(sel);
     const $$ = (sel, ctx) => [...(ctx || document).querySelectorAll(sel)];
 
-    function getParam(key) {
-      return new URLSearchParams(window.location.search).get(key);
-    }
+    function getParam(key) { return new URLSearchParams(window.location.search).get(key); }
 
     let toastTimer = null;
     function toast(msg, type) {
       type = type || 'info';
       const el = $('#toast');
-      const icons = { success: '&#10003;', error: '&#10007;', info: 'i', loading: '...' };
+      const icons = { success: '&#10003;', error: '&#10007;', info: 'i', loading: '&#8987;' };
       el.innerHTML = '<span>' + (icons[type] || 'i') + '</span><span>' + msg + '</span>';
       el.className = 'show ' + type;
       clearTimeout(toastTimer);
-      if (type !== 'loading') {
-        toastTimer = setTimeout(function () { el.className = ''; }, 3000);
-      }
+      if (type !== 'loading') toastTimer = setTimeout(function () { el.className = ''; }, 3000);
     }
 
     function qtyClass(qty) {
@@ -767,27 +1098,424 @@
 
     function escHtml(str) {
       return String(str == null ? '' : str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
-    /* =====================================================
-       SCAN MODE
-       ===================================================== */
-    async function initScanMode(boxId) {
+    function highlightMatch(text, query) {
+      if (!query) return escHtml(text);
+      var escaped = escHtml(text);
+      var escapedQ = escHtml(query);
+      var re = new RegExp('(' + escapedQ.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+      return escaped.replace(re, '<mark class="highlight">$1</mark>');
+    }
+
+    /* ─────────────────────────────────────────────
+       MODAL
+    ───────────────────────────────────────────── */
+    function openModal(sheetId) {
+      $('#modal-backdrop').classList.add('open');
+      $('#' + sheetId).classList.add('open');
+    }
+
+    function closeModal() {
+      $('#modal-backdrop').classList.remove('open');
+      $$('.bottom-sheet').forEach(function (s) { s.classList.remove('open'); });
+    }
+
+    /* ─────────────────────────────────────────────
+       ROUTER
+    ───────────────────────────────────────────── */
+    function route() {
+      var boxId = getParam('box');
+      if (boxId) {
+        document.title = boxId + ' \u00B7 BoxTrack';
+        initScanMode(boxId.toUpperCase());
+      } else {
+        initHomeMode();
+      }
+    }
+
+    /* ─────────────────────────────────────────────
+       HOME MODE  (tabs: Generate | Scan | Search)
+    ───────────────────────────────────────────── */
+    var _activeTab = 'generate';
+
+    function initHomeMode() {
       var main = $('#main');
       main.innerHTML = [
+        '<nav class="tab-nav no-print">',
+          '<button class="tab-btn active" id="tab-btn-generate" onclick="showTab(\'generate\')">',
+            '<span class="tab-icon">&#9889;</span>Generate',
+          '</button>',
+          '<button class="tab-btn" id="tab-btn-scan" onclick="showTab(\'scan\')">',
+            '<span class="tab-icon">&#128247;</span>Scan QR',
+          '</button>',
+          '<button class="tab-btn" id="tab-btn-search" onclick="showTab(\'search\')">',
+            '<span class="tab-icon">&#128269;</span>Search',
+          '</button>',
+        '</nav>',
+        '<div id="tab-content"></div>'
+      ].join('');
+
+      showTab('generate');
+    }
+
+    function showTab(name) {
+      _activeTab = name;
+      $$('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+      var btn = $('#tab-btn-' + name);
+      if (btn) btn.classList.add('active');
+
+      // Stop camera if leaving scan tab
+      if (name !== 'scan') stopScanner();
+
+      var content = $('#tab-content');
+      if (name === 'generate') renderGenerateTab(content);
+      else if (name === 'scan') renderScannerTab(content);
+      else if (name === 'search') renderSearchTab(content);
+    }
+
+    /* ─────────────────────────────────────────────
+       TAB: GENERATE QR
+    ───────────────────────────────────────────── */
+    var _currentQR = null;
+
+    function renderGenerateTab(container) {
+      container.innerHTML = [
+        '<div class="card fade-in">',
+          '<div class="card-title">Generate Box QR Code</div>',
+          '<div class="input-wrap">',
+            '<label class="input-label" for="box-id-input">Box ID</label>',
+            '<input class="input-field" id="box-id-input" type="text"',
+              ' placeholder="e.g. BOX-01" autocomplete="off" autocorrect="off"',
+              ' autocapitalize="characters" spellcheck="false" maxlength="32" />',
+          '</div>',
+          '<button class="btn btn-primary" onclick="generateQR()">&#9889; Generate QR Code</button>',
+        '</div>',
+        '<div id="qr-result" style="display:none">',
+          '<div class="card">',
+            '<div class="qr-wrap">',
+              '<div id="qrcode-output"></div>',
+              '<div class="qr-label-info" id="qr-box-label"></div>',
+              '<div class="qr-url-hint" id="qr-url-hint"></div>',
+            '</div>',
+          '</div>',
+          '<button class="btn btn-outline no-print" onclick="printLabel()" style="margin-bottom:10px">',
+            '&#128424; Print QR Label',
+          '</button>',
+        '</div>'
+      ].join('');
+
+      $('#box-id-input').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') generateQR();
+      });
+    }
+
+    function generateQR() {
+      var input = $('#box-id-input');
+      var rawId = input.value.trim().toUpperCase();
+      if (!rawId) { input.focus(); toast('Please enter a Box ID', 'error'); return; }
+
+      var url = window.location.origin + window.location.pathname + '?box=' + encodeURIComponent(rawId);
+      var outputEl = $('#qrcode-output');
+      outputEl.innerHTML = '';
+      if (_currentQR) { try { _currentQR.clear(); } catch (e) { } }
+
+      _currentQR = new QRCode(outputEl, {
+        text: url, width: 200, height: 200,
+        colorDark: '#000000', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M,
+      });
+
+      $('#qr-box-label').textContent = rawId;
+      $('#qr-url-hint').textContent = url;
+      var resultEl = $('#qr-result');
+      resultEl.style.display = 'block';
+      resultEl.classList.add('fade-in');
+      setTimeout(function () { resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 50);
+    }
+
+    function printLabel() {
+      var input = $('#box-id-input');
+      if (!input) return;
+      var boxId = input.value.trim().toUpperCase();
+      if (!boxId) return;
+      var url = window.location.origin + window.location.pathname + '?box=' + encodeURIComponent(boxId);
+      var printEl = $('#qrcode-print');
+      var printLabelEl = $('#print-label');
+      printEl.innerHTML = '';
+      printLabelEl.style.display = 'flex';
+      new QRCode(printEl, { text: url, width: 98, height: 98, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
+      $('#print-box-id-text').textContent = boxId;
+      setTimeout(function () { window.print(); }, 250);
+    }
+
+    /* ─────────────────────────────────────────────
+       TAB: QR SCANNER  (BarcodeDetector API)
+    ───────────────────────────────────────────── */
+    var _scanStream = null;
+    var _scanInterval = null;
+    var _scanDetected = false;
+
+    function renderScannerTab(container) {
+      var supported = 'BarcodeDetector' in window;
+      container.innerHTML = [
+        '<div class="card fade-in" style="padding:16px">',
+          '<div class="card-title" style="margin-bottom:10px">Scan Box QR Code</div>',
+          supported
+            ? [
+                '<div class="scanner-wrap">',
+                  '<video id="scanner-video" autoplay muted playsinline></video>',
+                  '<div class="scanner-overlay">',
+                    '<div class="scanner-frame">',
+                      '<div class="scanner-frame-corner-tr"></div>',
+                      '<div class="scanner-frame-corner-bl"></div>',
+                      '<div class="scanner-line"></div>',
+                    '</div>',
+                  '</div>',
+                '</div>',
+                '<p class="scanner-status" id="scanner-status">Point camera at a BoxTrack QR code&hellip;</p>',
+                '<div style="height:12px"></div>',
+                '<button class="btn btn-primary" id="scanner-start-btn" onclick="startScanner()">&#128247; Start Camera</button>',
+                '<div style="height:8px"></div>',
+                '<button class="btn btn-outline" onclick="stopScanner()" style="min-height:44px">&#9646; Stop Camera</button>',
+              ].join('')
+            : [
+                '<div class="notice">',
+                  '<span style="font-size:1.3rem">&#128247;</span>',
+                  '<div>',
+                    '<strong>Camera scanning not supported</strong><br>',
+                    '<span style="color:var(--text-dim)">Use Google Lens, iOS Camera, or Android camera app to scan QR codes directly. Or use the file input below.</span>',
+                  '</div>',
+                '</div>',
+                '<div style="height:12px"></div>',
+                '<label class="btn btn-primary" style="cursor:pointer">',
+                  '&#128444; Scan from Image',
+                  '<input type="file" accept="image/*" capture="environment" style="display:none" onchange="scanFromFile(event)">',
+                '</label>',
+              ].join(''),
+        '</div>'
+      ].join('');
+    }
+
+    async function startScanner() {
+      if (!('BarcodeDetector' in window)) return;
+      _scanDetected = false;
+      var statusEl = $('#scanner-status');
+      var startBtn = $('#scanner-start-btn');
+      try {
+        _scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        var video = $('#scanner-video');
+        video.srcObject = _scanStream;
+        if (startBtn) startBtn.style.display = 'none';
+        if (statusEl) statusEl.textContent = 'Scanning\u2026 hold camera steady';
+
+        var detector = new BarcodeDetector({ formats: ['qr_code'] });
+        _scanInterval = setInterval(async function () {
+          if (_scanDetected) return;
+          try {
+            var codes = await detector.detect(video);
+            if (codes.length > 0) {
+              var raw = codes[0].rawValue;
+              var boxId = extractBoxId(raw);
+              if (boxId) {
+                _scanDetected = true;
+                stopScanner();
+                if (statusEl) {
+                  statusEl.innerHTML = '<span class="scanner-detected">&#10003; Detected: ' + escHtml(boxId) + '</span>';
+                }
+                setTimeout(function () {
+                  window.location.href = window.location.pathname + '?box=' + encodeURIComponent(boxId);
+                }, 600);
+              }
+            }
+          } catch (e) { }
+        }, 400);
+      } catch (err) {
+        if (statusEl) statusEl.textContent = 'Camera access denied. Enable camera permissions and try again.';
+      }
+    }
+
+    function stopScanner() {
+      if (_scanInterval) { clearInterval(_scanInterval); _scanInterval = null; }
+      if (_scanStream) { _scanStream.getTracks().forEach(function (t) { t.stop(); }); _scanStream = null; }
+      var video = $('#scanner-video');
+      if (video) { video.srcObject = null; }
+    }
+
+    function extractBoxId(raw) {
+      try {
+        var url = new URL(raw);
+        return url.searchParams.get('box');
+      } catch (e) {
+        // Maybe raw value is just the box ID itself
+        if (/^[A-Z0-9\-_]{2,20}$/i.test(raw.trim())) return raw.trim().toUpperCase();
+        return null;
+      }
+    }
+
+    function scanFromFile(event) {
+      var file = event.target.files[0];
+      if (!file) return;
+      if (!('BarcodeDetector' in window)) { toast('BarcodeDetector not available', 'error'); return; }
+      var img = new Image();
+      img.onload = async function () {
+        try {
+          var detector = new BarcodeDetector({ formats: ['qr_code'] });
+          var codes = await detector.detect(img);
+          if (codes.length > 0) {
+            var boxId = extractBoxId(codes[0].rawValue);
+            if (boxId) {
+              window.location.href = window.location.pathname + '?box=' + encodeURIComponent(boxId);
+            } else {
+              toast('No BoxTrack QR found in image', 'error');
+            }
+          } else {
+            toast('No QR code detected', 'error');
+          }
+        } catch (e) { toast('Error reading image', 'error'); }
+      };
+      img.src = URL.createObjectURL(file);
+    }
+
+    /* ─────────────────────────────────────────────
+       TAB: SEARCH
+    ───────────────────────────────────────────── */
+    var _allInventory = null; // cached from GAS
+    var _searchDebounce = null;
+
+    function renderSearchTab(container) {
+      container.innerHTML = [
+        '<div class="search-wrap fade-in">',
+          '<span class="search-icon">&#128269;</span>',
+          '<input class="search-field" id="search-input" type="search"',
+            ' placeholder="Search products, SKUs, boxes\u2026" autocomplete="off" />',
+        '</div>',
+        '<div id="search-results">',
+          '<div class="empty-state" style="padding:32px 0">',
+            '<div class="icon">&#128269;</div>',
+            '<p>Type to search across all inventory</p>',
+          '</div>',
+        '</div>'
+      ].join('');
+
+      $('#search-input').addEventListener('input', function (e) {
+        clearTimeout(_searchDebounce);
+        var q = e.target.value.trim();
+        if (!q) {
+          $('#search-results').innerHTML = '<div class="empty-state" style="padding:32px 0"><div class="icon">&#128269;</div><p>Type to search across all inventory</p></div>';
+          return;
+        }
+        _searchDebounce = setTimeout(function () { performSearch(q); }, 280);
+      });
+    }
+
+    async function performSearch(query) {
+      var resultsEl = $('#search-results');
+      if (!resultsEl) return;
+
+      // Show loading
+      resultsEl.innerHTML = [
+        '<div class="skeleton skel-row" style="margin-bottom:10px"></div>',
+        '<div class="skeleton skel-row" style="margin-bottom:10px"></div>',
+        '<div class="skeleton skel-row"></div>'
+      ].join('');
+
+      // Fetch all inventory once and cache
+      if (!_allInventory) {
+        try {
+          var res = await fetch(CONFIG.GAS_URL + '?action=all');
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          var data = await res.json();
+          if (data.error) throw new Error(data.error);
+          _allInventory = data.rows || [];
+        } catch (err) {
+          resultsEl.innerHTML = '<div class="error-banner"><span style="font-size:1.3rem">&#9888;</span><div><strong>Search failed</strong><br><span style="color:var(--text-dim)">' + escHtml(err.message) + '</span></div></div>';
+          return;
+        }
+      }
+
+      var q = query.toLowerCase();
+      // Group results by box
+      var boxMap = {};
+      _allInventory.forEach(function (row) {
+        var matchBox = row.boxId.toLowerCase().includes(q);
+        var matchSku = row.sku.toLowerCase().includes(q);
+        var matchName = row.name.toLowerCase().includes(q);
+        var matchLoc = (row.location || '').toLowerCase().includes(q);
+        if (matchBox || matchSku || matchName || matchLoc) {
+          if (!boxMap[row.boxId]) boxMap[row.boxId] = { location: row.location, products: [] };
+          boxMap[row.boxId].products.push(row);
+        }
+      });
+
+      var keys = Object.keys(boxMap);
+      if (keys.length === 0) {
+        resultsEl.innerHTML = '<div class="empty-state" style="padding:32px 0"><div class="icon">&#128269;</div><p>No results for &ldquo;' + escHtml(query) + '&rdquo;</p></div>';
+        return;
+      }
+
+      var html = keys.map(function (boxId) {
+        var box = boxMap[boxId];
+        var productRows = box.products.map(function (p) {
+          var cls = qtyClass(p.qty);
+          return [
+            '<div class="search-result-product">',
+              '<div style="flex:1;min-width:0">',
+                '<div style="font-size:0.9rem;font-weight:600">' + highlightMatch(p.name, query) + '</div>',
+                '<div style="font-size:0.73rem;color:var(--text-muted);font-family:monospace">' + highlightMatch(p.sku, query) + '</div>',
+              '</div>',
+              '<div class="product-qty ' + cls + '" style="font-size:1.1rem">' + p.qty + '</div>',
+            '</div>'
+          ].join('');
+        }).join('');
+
+        return [
+          '<div class="search-result-box">',
+            '<div class="search-result-box-header" onclick="goToBox(\'' + escHtml(boxId) + '\')">',
+              '<div>',
+                '<div class="search-result-box-id">' + highlightMatch(boxId, query) + '</div>',
+                '<div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">&#128205; ' + escHtml(box.location) + '</div>',
+              '</div>',
+              '<span style="color:var(--accent);font-size:0.8rem;font-weight:600">View &#8594;</span>',
+            '</div>',
+            productRows,
+          '</div>'
+        ].join('');
+      }).join('');
+
+      resultsEl.innerHTML = [
+        '<div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:10px">',
+          keys.length + ' box' + (keys.length !== 1 ? 'es' : '') + ' matched',
+        '</div>',
+        html
+      ].join('');
+    }
+
+    function goToBox(boxId) {
+      stopScanner();
+      window.location.href = window.location.pathname + '?box=' + encodeURIComponent(boxId);
+    }
+
+    /* ─────────────────────────────────────────────
+       SCAN MODE  (?box=BOX-01)
+    ───────────────────────────────────────────── */
+    async function initScanMode(boxId) {
+      var main = $('#main');
+      // Back button
+      main.innerHTML = [
+        '<button class="btn btn-outline no-print" onclick="window.location.href=\'/\'" style="min-height:40px;font-size:0.82rem;margin-bottom:12px;width:auto;padding:0 14px">',
+          '&#8592; Home',
+        '</button>',
         '<div class="skeleton skel-box fade-in"></div>',
         '<div class="section-header no-print">',
-        '<span class="section-title">Products</span>',
+          '<span class="section-title">Products</span>',
         '</div>',
         '<div class="product-list">',
-        '<div class="skeleton skel-row" style="margin-bottom:10px"></div>',
-        '<div class="skeleton skel-row" style="margin-bottom:10px"></div>',
-        '<div class="skeleton skel-row" style="margin-bottom:10px"></div>',
+          '<div class="skeleton skel-row" style="margin-bottom:10px"></div>',
+          '<div class="skeleton skel-row" style="margin-bottom:10px"></div>',
+          '<div class="skeleton skel-row" style="margin-bottom:10px"></div>',
         '</div>'
       ].join('');
 
@@ -799,17 +1527,16 @@
         if (boxData.error) throw new Error(boxData.error);
       } catch (err) {
         main.innerHTML = [
+          '<button class="btn btn-outline no-print" onclick="window.location.href=\'/\'" style="min-height:40px;font-size:0.82rem;margin-bottom:12px;width:auto;padding:0 14px">&#8592; Home</button>',
           '<div class="error-banner fade-in">',
-          '<span style="font-size:1.3rem">&#9888;&#65039;</span>',
-          '<div>',
-          '<strong>Could not load box data</strong><br>',
-          '<span style="color:var(--text-dim)">' + escHtml(err.message) + '</span><br>',
-          '<small style="color:var(--text-dim);margin-top:4px;display:block">',
-          'Make sure your GAS_URL is set and the Apps Script is deployed as "Anyone" accessible.',
-          '</small>',
+            '<span style="font-size:1.3rem">&#9888;&#65039;</span>',
+            '<div>',
+              '<strong>Could not load box data</strong><br>',
+              '<span style="color:var(--text-dim)">' + escHtml(err.message) + '</span><br>',
+              '<small style="color:var(--text-dim);margin-top:4px;display:block">Make sure GAS_URL is set and deployed as "Anyone" accessible.</small>',
+            '</div>',
           '</div>',
-          '</div>',
-          '<div style="height:16px"></div>',
+          '<div style="height:12px"></div>',
           '<button class="btn btn-outline" onclick="initScanMode(\'' + escHtml(boxId) + '\')">&#8634; Retry</button>'
         ].join('');
         return;
@@ -824,51 +1551,61 @@
       var products = boxData.products || [];
 
       var rows = products.length === 0
-        ? '<div class="empty-state fade-in"><div class="icon">&#128451;</div><p>No products in this box yet.</p></div>'
+        ? '<div class="empty-state fade-in"><div class="icon">&#128451;</div><p>No products in this box yet.<br>Tap &#43; to add the first one.</p></div>'
         : '<div class="product-list fade-in" id="product-list">' +
-        products.map(function (p, i) { return renderProductRow(p, i, false); }).join('') +
+          products.map(function (p, i) { return renderProductRow(p, i, false); }).join('') +
+          '</div>';
+
+      var actionBar = '<div class="action-bar no-print" id="action-bar">' +
+        (products.length > 0
+          ? '<button class="btn btn-primary" id="checkout-btn" onclick="enterEditMode()">&#9998; Checkout / Update Stock</button>'
+          : '<button class="btn btn-outline" style="opacity:0.5" disabled>No products to update</button>'
+        ) +
         '</div>';
 
-      var actionBar = products.length > 0
-        ? '<div class="action-bar no-print" id="action-bar">' +
-        '<button class="btn btn-primary" id="checkout-btn" onclick="enterEditMode()">' +
-        '&#9998; Checkout / Update Stock' +
-        '</button>' +
-        '</div>'
-        : '';
-
       main.innerHTML = [
+        '<button class="btn btn-outline no-print" onclick="window.location.href=window.location.pathname" style="min-height:40px;font-size:0.82rem;margin-bottom:12px;width:auto;padding:0 14px">',
+          '&#8592; Home',
+        '</button>',
         '<div class="box-hero fade-in">',
-        '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">',
-        '<div>',
-        '<div style="font-size:0.72rem;font-weight:600;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Box</div>',
-        '<div class="box-id">' + escHtml(boxId) + '</div>',
-        '</div>',
-        '<span class="badge badge-purple">&#128205; ' + escHtml(location) + '</span>',
-        '</div>',
-        '<div class="divider" style="margin:12px 0 10px"></div>',
-        '<div style="display:flex;gap:10px;flex-wrap:wrap">',
-        '<span class="badge badge-green">&#128230; ' + products.length + ' SKU' + (products.length !== 1 ? 's' : '') + '</span>',
-        '<span class="badge badge-amber">&#128336; ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</span>',
-        '</div>',
+          '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">',
+            '<div>',
+              '<div style="font-size:0.72rem;font-weight:600;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Box</div>',
+              '<div class="box-id">' + escHtml(boxId) + '</div>',
+            '</div>',
+            '<span class="badge badge-purple">&#128205; ' + escHtml(location) + '</span>',
+          '</div>',
+          '<div class="divider" style="margin:12px 0 10px"></div>',
+          '<div style="display:flex;gap:10px;flex-wrap:wrap">',
+            '<span class="badge badge-green">&#128230; ' + products.length + ' SKU' + (products.length !== 1 ? 's' : '') + '</span>',
+            '<span class="badge badge-amber">&#128336; ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</span>',
+          '</div>',
         '</div>',
         '<div class="section-header no-print">',
-        '<span class="section-title">Products</span>',
-        '<span style="font-size:0.75rem;color:var(--text-dim)">' + products.length + ' item' + (products.length !== 1 ? 's' : '') + '</span>',
+          '<span class="section-title">Products</span>',
+          '<span style="font-size:0.75rem;color:var(--text-dim)">' + products.length + ' item' + (products.length !== 1 ? 's' : '') + '</span>',
         '</div>',
         rows,
         actionBar
       ].join('');
+
+      // FAB — Add Product
+      var fab = document.createElement('button');
+      fab.className = 'fab no-print';
+      fab.id = 'add-product-fab';
+      fab.title = 'Add Product';
+      fab.innerHTML = '&#43;';
+      fab.onclick = function () { openAddProductSheet(boxId, location); };
+      document.body.appendChild(fab);
 
       window._boxData = { boxId: boxId, location: location, products: products.map(function (p) { return Object.assign({}, p); }) };
       window._editing = false;
       window._deltas = {};
     }
 
+    /* ─── Product rows ─── */
     function renderProductRow(product, index, editing) {
-      var name = product.name;
-      var sku = product.sku;
-      var qty = product.qty;
+      var name = product.name, sku = product.sku, qty = product.qty;
       var delta = (window._deltas || {})[sku] || 0;
       var newQty = qty + delta;
       var cls = qtyClass(newQty);
@@ -876,28 +1613,26 @@
       if (!editing) {
         return [
           '<div class="product-row" data-sku="' + escHtml(sku) + '" data-index="' + index + '">',
-          '<div class="product-info">',
-          '<div class="product-name">' + escHtml(name) + '</div>',
-          '<div class="product-sku">' + escHtml(sku) + '</div>',
-          '</div>',
-          '<div class="product-qty ' + cls + '">' + qty + '</div>',
+            '<div class="product-info">',
+              '<div class="product-name">' + escHtml(name) + '</div>',
+              '<div class="product-sku">' + escHtml(sku) + '</div>',
+            '</div>',
+            '<div class="product-qty ' + cls + '">' + qty + '</div>',
           '</div>'
         ].join('');
       }
 
       return [
         '<div class="product-row editing" data-sku="' + escHtml(sku) + '" data-index="' + index + '">',
-        '<div class="product-info">',
-        '<div class="product-name">' + escHtml(name) + '</div>',
-        '<div class="product-sku">' + escHtml(sku) + '</div>',
-        '</div>',
-        '<div class="product-counter">',
-        '<button class="btn btn-icon btn-dec" aria-label="Decrease ' + escHtml(name) + '"',
-        ' onclick="adjustDelta(\'' + escHtml(sku) + '\',' + index + ',-1)">&minus;</button>',
-        '<span class="counter-val ' + cls + '" id="counter-' + index + '">' + newQty + '</span>',
-        '<button class="btn btn-icon btn-inc" aria-label="Increase ' + escHtml(name) + '"',
-        ' onclick="adjustDelta(\'' + escHtml(sku) + '\',' + index + ',1)">+</button>',
-        '</div>',
+          '<div class="product-info">',
+            '<div class="product-name">' + escHtml(name) + '</div>',
+            '<div class="product-sku">' + escHtml(sku) + '</div>',
+          '</div>',
+          '<div class="product-counter">',
+            '<button class="btn btn-icon btn-dec" aria-label="Decrease ' + escHtml(name) + '" onclick="adjustDelta(\'' + escHtml(sku) + '\',' + index + ',-1)">&minus;</button>',
+            '<span class="counter-val ' + cls + '" id="counter-' + index + '">' + newQty + '</span>',
+            '<button class="btn btn-icon btn-inc" aria-label="Increase ' + escHtml(name) + '" onclick="adjustDelta(\'' + escHtml(sku) + '\',' + index + ',1)">+</button>',
+          '</div>',
         '</div>'
       ].join('');
     }
@@ -906,225 +1641,151 @@
       window._editing = true;
       window._deltas = {};
       refreshProductList();
+      var fab = $('#add-product-fab');
+      if (fab) fab.style.display = 'none';
       var bar = $('#action-bar');
-      if (bar) {
-        bar.innerHTML = [
-          '<button class="btn btn-outline" onclick="cancelEdit()">&#10005; Cancel</button>',
-          '<button class="btn btn-success" id="confirm-btn" onclick="confirmChanges()">',
-          '&#10003; Confirm Changes',
-          '</button>'
-        ].join('');
-      }
+      if (bar) bar.innerHTML = [
+        '<button class="btn btn-outline" onclick="cancelEdit()">&#10005; Cancel</button>',
+        '<button class="btn btn-success" id="confirm-btn" onclick="confirmChanges()">&#10003; Confirm Changes</button>'
+      ].join('');
     }
 
     function cancelEdit() {
       window._editing = false;
       window._deltas = {};
       refreshProductList();
+      var fab = $('#add-product-fab');
+      if (fab) fab.style.display = '';
       var bar = $('#action-bar');
-      if (bar) {
-        bar.innerHTML = [
-          '<button class="btn btn-primary" id="checkout-btn" onclick="enterEditMode()">',
-          '&#9998; Checkout / Update Stock',
-          '</button>'
-        ].join('');
-      }
+      if (bar) bar.innerHTML = '<button class="btn btn-primary" id="checkout-btn" onclick="enterEditMode()">&#9998; Checkout / Update Stock</button>';
     }
 
     function refreshProductList() {
       var list = $('#product-list');
       if (!list) return;
-      var products = window._boxData.products;
-      list.innerHTML = products.map(function (p, i) { return renderProductRow(p, i, window._editing); }).join('');
+      list.innerHTML = window._boxData.products.map(function (p, i) { return renderProductRow(p, i, window._editing); }).join('');
     }
 
     function adjustDelta(sku, index, dir) {
       if (!window._deltas) window._deltas = {};
       var product = window._boxData.products[index];
-      var current = window._deltas[sku] || 0;
-      var newDelta = current + dir;
+      var newDelta = (window._deltas[sku] || 0) + dir;
       var newQty = product.qty + newDelta;
       if (newQty < 0) return;
-
       window._deltas[sku] = newDelta;
-
       var counterEl = $('#counter-' + index);
-      if (counterEl) {
-        counterEl.textContent = newQty;
-        counterEl.className = 'counter-val ' + qtyClass(newQty);
-      }
+      if (counterEl) { counterEl.textContent = newQty; counterEl.className = 'counter-val ' + qtyClass(newQty); }
     }
 
     async function confirmChanges() {
       var boxId = window._boxData.boxId;
       var products = window._boxData.products;
       var deltas = window._deltas || {};
-
       var updates = products
         .filter(function (p) { return deltas[p.sku] && deltas[p.sku] !== 0; })
         .map(function (p) { return { sku: p.sku, name: p.name, newQty: p.qty + (deltas[p.sku] || 0) }; });
 
-      if (updates.length === 0) {
-        toast('No changes to save', 'info');
-        return;
-      }
+      if (updates.length === 0) { toast('No changes to save', 'info'); return; }
 
       var btn = $('#confirm-btn');
-      if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spin"></span> Saving&hellip;';
-      }
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Saving&hellip;'; }
       toast('Saving changes&hellip;', 'loading');
 
       try {
         var res = await fetch(CONFIG.GAS_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({ boxId: boxId, updates: updates }),
+          body: JSON.stringify({ action: 'update', boxId: boxId, updates: updates }),
         });
-
         if (!res.ok) throw new Error('HTTP ' + res.status);
         var result = await res.json();
         if (result.error) throw new Error(result.error);
 
-        products.forEach(function (p) {
-          if (deltas[p.sku]) p.qty += deltas[p.sku];
-        });
-
+        products.forEach(function (p) { if (deltas[p.sku]) p.qty += deltas[p.sku]; });
+        _allInventory = null; // invalidate search cache
         toast(updates.length + ' item' + (updates.length > 1 ? 's' : '') + ' updated', 'success');
         cancelEdit();
       } catch (err) {
         toast('Error: ' + err.message, 'error');
-        if (btn) {
-          btn.disabled = false;
-          btn.innerHTML = '&#10003; Confirm Changes';
+        if (btn) { btn.disabled = false; btn.innerHTML = '&#10003; Confirm Changes'; }
+      }
+    }
+
+    /* ─────────────────────────────────────────────
+       ADD PRODUCT
+    ───────────────────────────────────────────── */
+    var _addProductBoxId = '';
+
+    function openAddProductSheet(boxId, location) {
+      _addProductBoxId = boxId;
+      $('#sheet-box-label').textContent = 'Adding to ' + boxId + ' \u2022 ' + location;
+      $('#ap-sku').value = '';
+      $('#ap-name').value = '';
+      $('#ap-qty').value = '0';
+      openModal('add-product-sheet');
+      setTimeout(function () { $('#ap-sku').focus(); }, 350);
+    }
+
+    async function submitAddProduct() {
+      var sku = $('#ap-sku').value.trim().toUpperCase();
+      var name = $('#ap-name').value.trim();
+      var qty = parseInt($('#ap-qty').value, 10);
+
+      if (!sku) { $('#ap-sku').focus(); toast('SKU is required', 'error'); return; }
+      if (!name) { $('#ap-name').focus(); toast('Product name is required', 'error'); return; }
+      if (isNaN(qty) || qty < 0) { $('#ap-qty').focus(); toast('Enter a valid quantity', 'error'); return; }
+
+      // Check for duplicate SKU
+      if (window._boxData) {
+        var existing = window._boxData.products.find(function (p) { return p.sku === sku; });
+        if (existing) { toast('SKU ' + sku + ' already exists in this box', 'error'); return; }
+      }
+
+      var btn = $('#ap-submit-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spin"></span> Adding&hellip;';
+      toast('Adding product&hellip;', 'loading');
+
+      try {
+        var res = await fetch(CONFIG.GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'addProduct',
+            boxId: _addProductBoxId,
+            location: window._boxData ? window._boxData.location : '',
+            sku: sku,
+            name: name,
+            qty: qty,
+          }),
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var result = await res.json();
+        if (result.error) throw new Error(result.error);
+
+        // Optimistically add to local product list
+        if (window._boxData) {
+          window._boxData.products.push({ sku: sku, name: name, qty: qty });
+          refreshProductList();
+          // Update badges
+          var badge = document.querySelector('.badge-green');
+          if (badge) badge.innerHTML = '&#128230; ' + window._boxData.products.length + ' SKUs';
         }
+
+        _allInventory = null; // invalidate search cache
+        closeModal();
+        toast('Product added: ' + name, 'success');
+      } catch (err) {
+        toast('Error: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '&#43; Add Product';
       }
     }
 
-    /* =====================================================
-       GENERATOR MODE
-       ===================================================== */
-    function initGeneratorMode() {
-      var main = $('#main');
-      main.innerHTML = [
-        '<div class="card fade-in">',
-        '<div class="card-title">Generate Box QR Code</div>',
-        '<div class="input-wrap">',
-        '<label class="input-label" for="box-id-input">Box ID</label>',
-        '<input class="input-field" id="box-id-input" type="text"',
-        ' placeholder="e.g. BOX-01" autocomplete="off" autocorrect="off"',
-        ' autocapitalize="characters" spellcheck="false" maxlength="32" />',
-        '</div>',
-        '<button class="btn btn-primary" onclick="generateQR()">&#9889; Generate QR Code</button>',
-        '</div>',
-
-        '<div id="qr-result" style="display:none">',
-        '<div class="card">',
-        '<div class="qr-wrap">',
-        '<div id="qrcode-output"></div>',
-        '<div class="qr-label-info" id="qr-box-label"></div>',
-        '<div class="qr-url-hint" id="qr-url-hint"></div>',
-        '</div>',
-        '</div>',
-        '<button class="btn btn-outline no-print" onclick="printLabel()" style="margin-bottom:10px">',
-        '&#128424; Print QR Label',
-        '</button>',
-        '</div>',
-
-        '<!-- Print-only label (62x38mm format) -->',
-        '<div id="print-label" class="print-label" style="display:none">',
-        '<div id="qrcode-print"></div>',
-        '<div class="print-box-id" id="print-box-id-text"></div>',
-        '</div>'
-      ].join('');
-
-      $('#box-id-input').addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') generateQR();
-      });
-    }
-
-    var _currentQR = null;
-
-    function generateQR() {
-      var input = $('#box-id-input');
-      var rawId = input.value.trim().toUpperCase();
-
-      if (!rawId) {
-        input.focus();
-        toast('Please enter a Box ID', 'error');
-        return;
-      }
-
-      var url = window.location.origin + window.location.pathname + '?box=' + encodeURIComponent(rawId);
-      var outputEl = $('#qrcode-output');
-      outputEl.innerHTML = '';
-
-      if (_currentQR) {
-        try { _currentQR.clear(); } catch (e) { }
-      }
-
-      _currentQR = new QRCode(outputEl, {
-        text: url,
-        width: 200,
-        height: 200,
-        colorDark: '#000000',
-        colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.M,
-      });
-
-      $('#qr-box-label').textContent = rawId;
-      $('#qr-url-hint').textContent = url;
-
-      var resultEl = $('#qr-result');
-      resultEl.style.display = 'block';
-      resultEl.classList.add('fade-in');
-
-      setTimeout(function () {
-        resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }, 50);
-    }
-
-    function printLabel() {
-      var input = $('#box-id-input');
-      if (!input) return;
-      var boxId = input.value.trim().toUpperCase();
-      if (!boxId) return;
-
-      var url = window.location.origin + window.location.pathname + '?box=' + encodeURIComponent(boxId);
-      var printEl = $('#qrcode-print');
-      var printLabel = $('#print-label');
-
-      printEl.innerHTML = '';
-      printLabel.style.display = 'flex';
-
-      new QRCode(printEl, {
-        text: url,
-        width: 98,
-        height: 98,
-        colorDark: '#000000',
-        colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.H,
-      });
-
-      $('#print-box-id-text').textContent = boxId;
-
-      setTimeout(function () { window.print(); }, 250);
-    }
-
-    /* =====================================================
-       ROUTER
-       ===================================================== */
-    function route() {
-      var boxId = getParam('box');
-      if (boxId) {
-        document.title = boxId + ' \u00B7 BoxTrack';
-        initScanMode(boxId.toUpperCase());
-      } else {
-        initGeneratorMode();
-      }
-    }
-
+    /* ─────────────────────────────────────────────
+       BOOT
+    ───────────────────────────────────────────── */
     route();
   </script>
 </body>
