@@ -9,1003 +9,7 @@
     content="QR-based physical box inventory tracker — scan, search and update stock in real time." />
   <title>BoxTrack · QR Inventory</title>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-  <style>
-    /* ─────────────────────────────────────────────
-       DESIGN TOKENS
-    ───────────────────────────────────────────── */
-    :root {
-      --bg: #0f172a;
-      --surface: #1e293b;
-      --surface-2: #273449;
-      --surface-3: #1a2540;
-      --border: #334155;
-      --accent: #6366f1;
-      --accent-glow: rgba(99, 102, 241, 0.35);
-      --accent-dark: #4f46e5;
-      --green: #22c55e;
-      --green-dark: #16a34a;
-      --red: #ef4444;
-      --red-dark: #dc2626;
-      --amber: #f59e0b;
-      --teal: #14b8a6;
-      --text: #f1f5f9;
-      --text-muted: #94a3b8;
-      --text-dim: #64748b;
-      --radius-sm: 8px;
-      --radius: 14px;
-      --radius-lg: 20px;
-      --shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
-      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    html {
-      font-size: 16px;
-      -webkit-text-size-adjust: 100%;
-    }
-
-    body {
-      font-family: var(--font);
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100svh;
-      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-      overscroll-behavior: none;
-    }
-
-    /* ─── LAYOUT ─── */
-    #app {
-      max-width: 540px;
-      margin: 0 auto;
-      padding: 0 16px 120px;
-    }
-
-    /* ─── HEADER ─── */
-    .app-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 20px 0 20px;
-    }
-
-    .app-logo {
-      width: 38px;
-      height: 38px;
-      background: linear-gradient(135deg, var(--accent), #818cf8);
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      flex-shrink: 0;
-      box-shadow: 0 0 18px var(--accent-glow);
-    }
-
-    .app-title {
-      font-size: 1.25rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-    }
-
-    .app-subtitle {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-top: 1px;
-    }
-
-    /* ─── HOME TAB NAV ─── */
-    .tab-nav {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 4px;
-      margin-bottom: 20px;
-      gap: 3px;
-    }
-
-    .tab-btn {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 3px;
-      padding: 10px 6px;
-      border-radius: calc(var(--radius-lg) - 6px);
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      font-family: var(--font);
-      font-size: 0.72rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background var(--transition), color var(--transition);
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .tab-btn .tab-icon {
-      font-size: 1.2rem;
-    }
-
-    .tab-btn.active {
-      background: linear-gradient(135deg, var(--accent), #818cf8);
-      color: #fff;
-    }
-
-    /* ─── CARD ─── */
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 20px;
-      margin-bottom: 16px;
-      box-shadow: var(--shadow-sm);
-    }
-
-    .card-title {
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--text-muted);
-      margin-bottom: 12px;
-    }
-
-    /* ─── BADGE ─── */
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 0.72rem;
-      font-weight: 600;
-      padding: 3px 9px;
-      border-radius: 20px;
-      letter-spacing: 0.03em;
-    }
-
-    .badge-purple {
-      background: rgba(99, 102, 241, 0.18);
-      color: #a5b4fc;
-      border: 1px solid rgba(99, 102, 241, 0.3);
-    }
-
-    .badge-green {
-      background: rgba(34, 197, 94, 0.15);
-      color: #86efac;
-      border: 1px solid rgba(34, 197, 94, 0.25);
-    }
-
-    .badge-amber {
-      background: rgba(245, 158, 11, 0.15);
-      color: #fcd34d;
-      border: 1px solid rgba(245, 158, 11, 0.25);
-    }
-
-    .badge-teal {
-      background: rgba(20, 184, 166, 0.15);
-      color: #5eead4;
-      border: 1px solid rgba(20, 184, 166, 0.25);
-    }
-
-    /* ─── BUTTONS ─── */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      min-height: 48px;
-      padding: 0 20px;
-      border-radius: var(--radius);
-      font-family: var(--font);
-      font-size: 0.95rem;
-      font-weight: 600;
-      cursor: pointer;
-      border: none;
-      outline: none;
-      transition: transform var(--transition), box-shadow var(--transition), background var(--transition);
-      -webkit-tap-highlight-color: transparent;
-      user-select: none;
-    }
-
-    .btn:active {
-      transform: scale(0.97);
-    }
-
-    .btn-primary {
-      background: linear-gradient(135deg, var(--accent), #818cf8);
-      color: #fff;
-      width: 100%;
-      box-shadow: 0 0 20px var(--accent-glow);
-    }
-
-    .btn-primary:hover {
-      box-shadow: 0 0 30px var(--accent-glow);
-    }
-
-    .btn-success {
-      background: linear-gradient(135deg, var(--green), #4ade80);
-      color: #052e16;
-      width: 100%;
-      box-shadow: 0 0 16px rgba(34, 197, 94, 0.3);
-    }
-
-    .btn-teal {
-      background: linear-gradient(135deg, var(--teal), #2dd4bf);
-      color: #022c22;
-      width: 100%;
-      box-shadow: 0 0 16px rgba(20, 184, 166, 0.3);
-    }
-
-    .btn-outline {
-      background: transparent;
-      color: var(--text-muted);
-      border: 1px solid var(--border);
-      width: 100%;
-    }
-
-    .btn-outline:hover {
-      background: var(--surface-2);
-      color: var(--text);
-    }
-
-    .btn-icon {
-      width: 44px;
-      height: 44px;
-      padding: 0;
-      border-radius: 50%;
-      font-size: 1.2rem;
-      flex-shrink: 0;
-    }
-
-    .btn-inc {
-      background: rgba(34, 197, 94, 0.18);
-      color: var(--green);
-      border: 1px solid rgba(34, 197, 94, 0.3);
-    }
-
-    .btn-dec {
-      background: rgba(239, 68, 68, 0.15);
-      color: var(--red);
-      border: 1px solid rgba(239, 68, 68, 0.25);
-    }
-
-    .btn-inc:hover {
-      background: rgba(34, 197, 94, 0.3);
-    }
-
-    .btn-dec:hover {
-      background: rgba(239, 68, 68, 0.28);
-    }
-
-    /* FAB */
-    .fab {
-      position: fixed;
-      bottom: 84px;
-      right: 20px;
-      width: 56px;
-      height: 56px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, var(--teal), #2dd4bf);
-      color: #022c22;
-      font-size: 1.6rem;
-      font-weight: 300;
-      border: none;
-      cursor: pointer;
-      box-shadow: 0 4px 20px rgba(20, 184, 166, 0.45);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: transform var(--transition), box-shadow var(--transition);
-      z-index: 90;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .fab:active {
-      transform: scale(0.93);
-    }
-
-    .fab:hover {
-      box-shadow: 0 6px 28px rgba(20, 184, 166, 0.6);
-    }
-
-    /* ─── INPUTS ─── */
-    .input-wrap {
-      position: relative;
-      margin-bottom: 14px;
-    }
-
-    .input-label {
-      display: block;
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      margin-bottom: 6px;
-    }
-
-    .input-field {
-      width: 100%;
-      height: 52px;
-      background: var(--surface-2);
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius);
-      color: var(--text);
-      font-family: var(--font);
-      font-size: 1rem;
-      font-weight: 600;
-      padding: 0 16px;
-      outline: none;
-      transition: border-color var(--transition), box-shadow var(--transition);
-      letter-spacing: 0.04em;
-    }
-
-    .input-field::placeholder {
-      color: var(--text-dim);
-      font-weight: 400;
-    }
-
-    .input-field:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-glow);
-    }
-
-    .input-field[readonly] {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    /* Search field with icon */
-    .search-wrap {
-      position: relative;
-      margin-bottom: 16px;
-    }
-
-    .search-icon {
-      position: absolute;
-      left: 14px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--text-dim);
-      font-size: 1.1rem;
-      pointer-events: none;
-    }
-
-    .search-field {
-      width: 100%;
-      height: 52px;
-      background: var(--surface);
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius-lg);
-      color: var(--text);
-      font-family: var(--font);
-      font-size: 1rem;
-      padding: 0 16px 0 44px;
-      outline: none;
-      transition: border-color var(--transition), box-shadow var(--transition);
-    }
-
-    .search-field::placeholder {
-      color: var(--text-dim);
-    }
-
-    .search-field:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-glow);
-    }
-
-    /* ─── BOX HERO ─── */
-    .box-hero {
-      background: linear-gradient(135deg, #1e293b 0%, #0f2040 100%);
-      border: 1px solid rgba(99, 102, 241, 0.3);
-      border-radius: var(--radius-lg);
-      padding: 20px;
-      margin-bottom: 16px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .box-hero::before {
-      content: '';
-      position: absolute;
-      top: -40px;
-      right: -40px;
-      width: 130px;
-      height: 130px;
-      background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, transparent 70%);
-      pointer-events: none;
-    }
-
-    .box-id {
-      font-size: 1.6rem;
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      background: linear-gradient(135deg, #e0e7ff, #a5b4fc);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    /* ─── PRODUCT ROWS ─── */
-    .product-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .product-row {
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 14px 16px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      transition: border-color var(--transition);
-    }
-
-    .product-row.editing {
-      border-color: var(--accent);
-    }
-
-    .product-info {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .product-name {
-      font-size: 0.95rem;
-      font-weight: 600;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .product-sku {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-top: 2px;
-      font-family: 'Courier New', monospace;
-    }
-
-    .product-qty {
-      font-size: 1.4rem;
-      font-weight: 800;
-      color: var(--text);
-      letter-spacing: -0.02em;
-      min-width: 36px;
-      text-align: right;
-    }
-
-    .product-qty.low {
-      color: var(--amber);
-    }
-
-    .product-qty.zero {
-      color: var(--red);
-    }
-
-    .product-counter {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      animation: fadeSlideIn 200ms ease;
-    }
-
-    .counter-val {
-      font-size: 1.3rem;
-      font-weight: 800;
-      min-width: 40px;
-      text-align: center;
-      letter-spacing: -0.02em;
-    }
-
-    /* ─── SEARCH RESULTS ─── */
-    .search-result-box {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 16px;
-      margin-bottom: 12px;
-      animation: fadeIn 250ms ease both;
-    }
-
-    .search-result-box-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 10px;
-      cursor: pointer;
-    }
-
-    .search-result-box-id {
-      font-size: 1rem;
-      font-weight: 800;
-      letter-spacing: -0.01em;
-      background: linear-gradient(135deg, #e0e7ff, #a5b4fc);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .search-result-product {
-      background: var(--surface-2);
-      border-radius: var(--radius-sm);
-      padding: 10px 12px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 6px;
-    }
-
-    .highlight {
-      background: rgba(99, 102, 241, 0.25);
-      color: #c7d2fe;
-      border-radius: 3px;
-      padding: 0 2px;
-    }
-
-    /* ─── QR OUTPUT ─── */
-    .qr-wrap {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 16px;
-    }
-
-    #qrcode-output {
-      background: #fff;
-      border-radius: var(--radius);
-      padding: 16px;
-      display: inline-block;
-      box-shadow: 0 0 40px rgba(99, 102, 241, 0.2);
-    }
-
-    #qrcode-output canvas,
-    #qrcode-output img {
-      display: block;
-    }
-
-    .qr-label-info {
-      text-align: center;
-      font-size: 1.1rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      color: var(--text);
-      margin-top: 4px;
-    }
-
-    .qr-url-hint {
-      font-size: 0.72rem;
-      color: var(--text-dim);
-      text-align: center;
-      word-break: break-all;
-      max-width: 280px;
-    }
-
-    /* ─── CAMERA SCANNER ─── */
-    .scanner-wrap {
-      position: relative;
-      border-radius: var(--radius-lg);
-      overflow: hidden;
-      background: #000;
-      aspect-ratio: 1;
-      max-width: 340px;
-      margin: 0 auto;
-    }
-
-    #scanner-video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-
-    .scanner-overlay {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      pointer-events: none;
-    }
-
-    .scanner-frame {
-      width: 65%;
-      height: 65%;
-      position: relative;
-    }
-
-    .scanner-frame::before,
-    .scanner-frame::after {
-      content: '';
-      position: absolute;
-      width: 24px;
-      height: 24px;
-      border-color: var(--accent);
-      border-style: solid;
-    }
-
-    .scanner-frame::before {
-      top: 0;
-      left: 0;
-      border-width: 3px 0 0 3px;
-      border-radius: 4px 0 0 0;
-    }
-
-    .scanner-frame::after {
-      bottom: 0;
-      right: 0;
-      border-width: 0 3px 3px 0;
-      border-radius: 0 0 4px 0;
-    }
-
-    .scanner-frame-corner-tr,
-    .scanner-frame-corner-bl {
-      position: absolute;
-      width: 24px;
-      height: 24px;
-      border-color: var(--accent);
-      border-style: solid;
-    }
-
-    .scanner-frame-corner-tr {
-      top: 0;
-      right: 0;
-      border-width: 3px 3px 0 0;
-      border-radius: 0 4px 0 0;
-    }
-
-    .scanner-frame-corner-bl {
-      bottom: 0;
-      left: 0;
-      border-width: 0 0 3px 3px;
-      border-radius: 0 0 0 4px;
-    }
-
-    .scanner-line {
-      position: absolute;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--accent), transparent);
-      animation: scanLine 2s linear infinite;
-      border-radius: 2px;
-    }
-
-    @keyframes scanLine {
-      0% { top: 0%; opacity: 1; }
-      95% { opacity: 1; }
-      100% { top: 100%; opacity: 0; }
-    }
-
-    .scanner-status {
-      text-align: center;
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      margin-top: 12px;
-      min-height: 20px;
-    }
-
-    .scanner-detected {
-      color: var(--green);
-      font-weight: 600;
-      animation: pulse 0.4s ease;
-    }
-
-    @keyframes pulse {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.05); }
-      100% { transform: scale(1); }
-    }
-
-    /* ─── BOTTOM SHEET MODAL ─── */
-    .modal-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.6);
-      backdrop-filter: blur(4px);
-      z-index: 200;
-      opacity: 0;
-      transition: opacity 300ms ease;
-      pointer-events: none;
-    }
-
-    .modal-backdrop.open {
-      opacity: 1;
-      pointer-events: all;
-    }
-
-    .bottom-sheet {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: var(--surface);
-      border-top: 1px solid var(--border);
-      border-radius: 24px 24px 0 0;
-      padding: 12px 20px 32px;
-      padding-bottom: calc(32px + env(safe-area-inset-bottom));
-      z-index: 201;
-      transform: translateY(100%);
-      transition: transform 350ms cubic-bezier(0.34, 1.1, 0.64, 1);
-      max-width: 540px;
-      margin: 0 auto;
-    }
-
-    .bottom-sheet.open {
-      transform: translateY(0);
-    }
-
-    .sheet-handle {
-      width: 40px;
-      height: 4px;
-      background: var(--border);
-      border-radius: 2px;
-      margin: 0 auto 16px;
-    }
-
-    .sheet-title {
-      font-size: 1.1rem;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-
-    .sheet-subtitle {
-      font-size: 0.82rem;
-      color: var(--text-muted);
-      margin-bottom: 20px;
-    }
-
-    /* ─── SKELETON ─── */
-    .skeleton {
-      background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.4s infinite;
-      border-radius: var(--radius-sm);
-    }
-
-    .skel-box {
-      height: 90px;
-      margin-bottom: 16px;
-      border-radius: var(--radius-lg);
-    }
-
-    .skel-row {
-      height: 72px;
-      border-radius: var(--radius);
-    }
-
-    @keyframes shimmer {
-      to {
-        background-position: -200% 0;
-      }
-    }
-
-    /* ─── TOAST ─── */
-    #toast {
-      position: fixed;
-      bottom: 32px;
-      left: 50%;
-      transform: translateX(-50%) translateY(120px);
-      background: var(--surface);
-      border: 1px solid var(--border);
-      color: var(--text);
-      font-size: 0.9rem;
-      font-weight: 500;
-      padding: 12px 20px;
-      border-radius: 40px;
-      box-shadow: var(--shadow);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      white-space: nowrap;
-      transition: transform 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
-      z-index: 999;
-      pointer-events: none;
-    }
-
-    #toast.show {
-      transform: translateX(-50%) translateY(0);
-    }
-
-    #toast.success {
-      border-color: rgba(34, 197, 94, 0.4);
-    }
-
-    #toast.error {
-      border-color: rgba(239, 68, 68, 0.4);
-    }
-
-    /* ─── EMPTY STATE ─── */
-    .empty-state {
-      text-align: center;
-      padding: 48px 24px;
-      color: var(--text-dim);
-    }
-
-    .empty-state .icon {
-      font-size: 3rem;
-      margin-bottom: 12px;
-    }
-
-    .empty-state p {
-      font-size: 0.9rem;
-    }
-
-    /* ─── STICKY ACTION BAR ─── */
-    .action-bar {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: rgba(15, 23, 42, 0.92);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border-top: 1px solid var(--border);
-      padding: 12px 16px;
-      padding-bottom: calc(12px + env(safe-area-inset-bottom));
-      display: flex;
-      gap: 10px;
-      z-index: 100;
-    }
-
-    /* ─── ANIMATIONS ─── */
-    @keyframes fadeSlideIn {
-      from {
-        opacity: 0;
-        transform: translateX(10px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateX(0);
-      }
-    }
-
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(8px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .fade-in {
-      animation: fadeIn 300ms ease both;
-    }
-
-    /* ─── DIVIDER ─── */
-    .divider {
-      height: 1px;
-      background: var(--border);
-      margin: 16px 0;
-    }
-
-    /* ─── SECTION HEADER ─── */
-    .section-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
-    }
-
-    .section-title {
-      font-size: 0.8rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--text-muted);
-    }
-
-    /* ─── SPIN ─── */
-    .spin {
-      display: inline-block;
-      width: 16px;
-      height: 16px;
-      border: 2px solid rgba(255, 255, 255, 0.3);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-    }
-
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-
-    /* ─── ERROR BANNER ─── */
-    .error-banner {
-      background: rgba(239, 68, 68, 0.12);
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      border-radius: var(--radius);
-      padding: 14px 16px;
-      font-size: 0.88rem;
-      color: #fca5a5;
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-    }
-
-    /* ─── PRINT STYLES ─── */
-    @media print {
-      body {
-        background: #fff;
-        color: #000;
-        padding: 0;
-        margin: 0;
-      }
-
-      #app {
-        padding: 0;
-        max-width: none;
-      }
-
-      .no-print {
-        display: none !important;
-      }
-
-      .print-only {
-        display: flex !important;
-      }
-
-      .print-label {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        width: 62mm;
-        height: 38mm;
-        padding: 4mm;
-        border: 1.5px solid #000;
-        border-radius: 3mm;
-        page-break-after: avoid;
-      }
-
-      .print-label canvas,
-      .print-label img {
-        width: 26mm !important;
-        height: 26mm !important;
-      }
-
-      .print-label .print-box-id {
-        font-family: sans-serif;
-        font-size: 9pt;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        margin-top: 3mm;
-      }
-    }
-
-    .print-only {
-      display: none;
-    }
-
-    /* ─── UNSUPPORTED NOTICE ─── */
-    .notice {
-      background: rgba(245, 158, 11, 0.1);
-      border: 1px solid rgba(245, 158, 11, 0.3);
-      border-radius: var(--radius);
-      padding: 14px 16px;
-      font-size: 0.85rem;
-      color: #fcd34d;
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
@@ -1034,13 +38,13 @@
 
     <div class="input-wrap">
       <label class="input-label" for="ap-sku">SKU / Product ID</label>
-      <input class="input-field" id="ap-sku" type="text" placeholder="e.g. SKU-1004"
-        autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" maxlength="32" />
+      <input class="input-field" id="ap-sku" type="text" placeholder="e.g. SKU-1004" autocomplete="off"
+        autocorrect="off" autocapitalize="characters" spellcheck="false" maxlength="32" />
     </div>
     <div class="input-wrap">
       <label class="input-label" for="ap-name">Product Name</label>
-      <input class="input-field" id="ap-name" type="text" placeholder="e.g. Widget Gamma"
-        autocomplete="off" spellcheck="false" maxlength="64" />
+      <input class="input-field" id="ap-name" type="text" placeholder="e.g. Widget Gamma" autocomplete="off"
+        spellcheck="false" maxlength="64" />
     </div>
     <div class="input-wrap">
       <label class="input-label" for="ap-qty">Initial Quantity</label>
@@ -1067,7 +71,7 @@
        CONFIG  — replace with your deployed GAS URL
     ───────────────────────────────────────────── */
     const CONFIG = {
-      GAS_URL: 'https://script.google.com/macros/s/AKfycbwqpa3qCN1LWV4oVUPPXJ4xbNcSlYthlec4MHrKpSijw6p3jTYT1M8BbHODiHPWbdjR/exec',
+      GAS_URL: 'https://script.google.com/macros/s/AKfycbzC6qw1D775TwHFMTRPR_3H7ihxyJ6rknWxswU1IbyQTM6XFJH6OCDApmlJAiccwRfW/exec',
       LOW_STOCK_THRESHOLD: 5,
     };
 
@@ -1145,15 +149,15 @@
       var main = $('#main');
       main.innerHTML = [
         '<nav class="tab-nav no-print">',
-          '<button class="tab-btn active" id="tab-btn-generate" onclick="showTab(\'generate\')">',
-            '<span class="tab-icon">&#9889;</span>Generate',
-          '</button>',
-          '<button class="tab-btn" id="tab-btn-scan" onclick="showTab(\'scan\')">',
-            '<span class="tab-icon">&#128247;</span>Scan QR',
-          '</button>',
-          '<button class="tab-btn" id="tab-btn-search" onclick="showTab(\'search\')">',
-            '<span class="tab-icon">&#128269;</span>Search',
-          '</button>',
+        '<button class="tab-btn active" id="tab-btn-generate" onclick="showTab(\'generate\')">',
+        '<span class="tab-icon">&#9889;</span>Generate',
+        '</button>',
+        '<button class="tab-btn" id="tab-btn-scan" onclick="showTab(\'scan\')">',
+        '<span class="tab-icon">&#128247;</span>Scan QR',
+        '</button>',
+        '<button class="tab-btn" id="tab-btn-search" onclick="showTab(\'search\')">',
+        '<span class="tab-icon">&#128269;</span>Search',
+        '</button>',
         '</nav>',
         '<div id="tab-content"></div>'
       ].join('');
@@ -1184,26 +188,26 @@
     function renderGenerateTab(container) {
       container.innerHTML = [
         '<div class="card fade-in">',
-          '<div class="card-title">Generate Box QR Code</div>',
-          '<div class="input-wrap">',
-            '<label class="input-label" for="box-id-input">Box ID</label>',
-            '<input class="input-field" id="box-id-input" type="text"',
-              ' placeholder="e.g. BOX-01" autocomplete="off" autocorrect="off"',
-              ' autocapitalize="characters" spellcheck="false" maxlength="32" />',
-          '</div>',
-          '<button class="btn btn-primary" onclick="generateQR()">&#9889; Generate QR Code</button>',
+        '<div class="card-title">Generate Box QR Code</div>',
+        '<div class="input-wrap">',
+        '<label class="input-label" for="box-id-input">Box ID</label>',
+        '<input class="input-field" id="box-id-input" type="text"',
+        ' placeholder="e.g. BOX-01" autocomplete="off" autocorrect="off"',
+        ' autocapitalize="characters" spellcheck="false" maxlength="32" />',
+        '</div>',
+        '<button class="btn btn-primary" onclick="generateQR()">&#9889; Generate QR Code</button>',
         '</div>',
         '<div id="qr-result" style="display:none">',
-          '<div class="card">',
-            '<div class="qr-wrap">',
-              '<div id="qrcode-output"></div>',
-              '<div class="qr-label-info" id="qr-box-label"></div>',
-              '<div class="qr-url-hint" id="qr-url-hint"></div>',
-            '</div>',
-          '</div>',
-          '<button class="btn btn-outline no-print" onclick="printLabel()" style="margin-bottom:10px">',
-            '&#128424; Print QR Label',
-          '</button>',
+        '<div class="card">',
+        '<div class="qr-wrap">',
+        '<div id="qrcode-output"></div>',
+        '<div class="qr-label-info" id="qr-box-label"></div>',
+        '<div class="qr-url-hint" id="qr-url-hint"></div>',
+        '</div>',
+        '</div>',
+        '<button class="btn btn-outline no-print" onclick="printLabel()" style="margin-bottom:10px">',
+        '&#128424; Print QR Label',
+        '</button>',
         '</div>'
       ].join('');
 
@@ -1262,39 +266,39 @@
       var supported = 'BarcodeDetector' in window;
       container.innerHTML = [
         '<div class="card fade-in" style="padding:16px">',
-          '<div class="card-title" style="margin-bottom:10px">Scan Box QR Code</div>',
-          supported
-            ? [
-                '<div class="scanner-wrap">',
-                  '<video id="scanner-video" autoplay muted playsinline></video>',
-                  '<div class="scanner-overlay">',
-                    '<div class="scanner-frame">',
-                      '<div class="scanner-frame-corner-tr"></div>',
-                      '<div class="scanner-frame-corner-bl"></div>',
-                      '<div class="scanner-line"></div>',
-                    '</div>',
-                  '</div>',
-                '</div>',
-                '<p class="scanner-status" id="scanner-status">Point camera at a BoxTrack QR code&hellip;</p>',
-                '<div style="height:12px"></div>',
-                '<button class="btn btn-primary" id="scanner-start-btn" onclick="startScanner()">&#128247; Start Camera</button>',
-                '<div style="height:8px"></div>',
-                '<button class="btn btn-outline" onclick="stopScanner()" style="min-height:44px">&#9646; Stop Camera</button>',
-              ].join('')
-            : [
-                '<div class="notice">',
-                  '<span style="font-size:1.3rem">&#128247;</span>',
-                  '<div>',
-                    '<strong>Camera scanning not supported</strong><br>',
-                    '<span style="color:var(--text-dim)">Use Google Lens, iOS Camera, or Android camera app to scan QR codes directly. Or use the file input below.</span>',
-                  '</div>',
-                '</div>',
-                '<div style="height:12px"></div>',
-                '<label class="btn btn-primary" style="cursor:pointer">',
-                  '&#128444; Scan from Image',
-                  '<input type="file" accept="image/*" capture="environment" style="display:none" onchange="scanFromFile(event)">',
-                '</label>',
-              ].join(''),
+        '<div class="card-title" style="margin-bottom:10px">Scan Box QR Code</div>',
+        supported
+          ? [
+            '<div class="scanner-wrap">',
+            '<video id="scanner-video" autoplay muted playsinline></video>',
+            '<div class="scanner-overlay">',
+            '<div class="scanner-frame">',
+            '<div class="scanner-frame-corner-tr"></div>',
+            '<div class="scanner-frame-corner-bl"></div>',
+            '<div class="scanner-line"></div>',
+            '</div>',
+            '</div>',
+            '</div>',
+            '<p class="scanner-status" id="scanner-status">Point camera at a BoxTrack QR code&hellip;</p>',
+            '<div style="height:12px"></div>',
+            '<button class="btn btn-primary" id="scanner-start-btn" onclick="startScanner()">&#128247; Start Camera</button>',
+            '<div style="height:8px"></div>',
+            '<button class="btn btn-outline" onclick="stopScanner()" style="min-height:44px">&#9646; Stop Camera</button>',
+          ].join('')
+          : [
+            '<div class="notice">',
+            '<span style="font-size:1.3rem">&#128247;</span>',
+            '<div>',
+            '<strong>Camera scanning not supported</strong><br>',
+            '<span style="color:var(--text-dim)">Use Google Lens, iOS Camera, or Android camera app to scan QR codes directly. Or use the file input below.</span>',
+            '</div>',
+            '</div>',
+            '<div style="height:12px"></div>',
+            '<label class="btn btn-primary" style="cursor:pointer">',
+            '&#128444; Scan from Image',
+            '<input type="file" accept="image/*" capture="environment" style="display:none" onchange="scanFromFile(event)">',
+            '</label>',
+          ].join(''),
         '</div>'
       ].join('');
     }
@@ -1388,15 +392,15 @@
     function renderSearchTab(container) {
       container.innerHTML = [
         '<div class="search-wrap fade-in">',
-          '<span class="search-icon">&#128269;</span>',
-          '<input class="search-field" id="search-input" type="search"',
-            ' placeholder="Search products, SKUs, boxes\u2026" autocomplete="off" />',
+        '<span class="search-icon">&#128269;</span>',
+        '<input class="search-field" id="search-input" type="search"',
+        ' placeholder="Search products, SKUs, boxes\u2026" autocomplete="off" />',
         '</div>',
         '<div id="search-results">',
-          '<div class="empty-state" style="padding:32px 0">',
-            '<div class="icon">&#128269;</div>',
-            '<p>Type to search across all inventory</p>',
-          '</div>',
+        '<div class="empty-state" style="padding:32px 0">',
+        '<div class="icon">&#128269;</div>',
+        '<p>Type to search across all inventory</p>',
+        '</div>',
         '</div>'
       ].join('');
 
@@ -1462,32 +466,32 @@
           var cls = qtyClass(p.qty);
           return [
             '<div class="search-result-product">',
-              '<div style="flex:1;min-width:0">',
-                '<div style="font-size:0.9rem;font-weight:600">' + highlightMatch(p.name, query) + '</div>',
-                '<div style="font-size:0.73rem;color:var(--text-muted);font-family:monospace">' + highlightMatch(p.sku, query) + '</div>',
-              '</div>',
-              '<div class="product-qty ' + cls + '" style="font-size:1.1rem">' + p.qty + '</div>',
+            '<div style="flex:1;min-width:0">',
+            '<div style="font-size:0.9rem;font-weight:600">' + highlightMatch(p.name, query) + '</div>',
+            '<div style="font-size:0.73rem;color:var(--text-muted);font-family:monospace">' + highlightMatch(p.sku, query) + '</div>',
+            '</div>',
+            '<div class="product-qty ' + cls + '" style="font-size:1.1rem">' + p.qty + '</div>',
             '</div>'
           ].join('');
         }).join('');
 
         return [
           '<div class="search-result-box">',
-            '<div class="search-result-box-header" onclick="goToBox(\'' + escHtml(boxId) + '\')">',
-              '<div>',
-                '<div class="search-result-box-id">' + highlightMatch(boxId, query) + '</div>',
-                '<div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">&#128205; ' + escHtml(box.location) + '</div>',
-              '</div>',
-              '<span style="color:var(--accent);font-size:0.8rem;font-weight:600">View &#8594;</span>',
-            '</div>',
-            productRows,
+          '<div class="search-result-box-header" onclick="goToBox(\'' + escHtml(boxId) + '\')">',
+          '<div>',
+          '<div class="search-result-box-id">' + highlightMatch(boxId, query) + '</div>',
+          '<div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">&#128205; ' + escHtml(box.location) + '</div>',
+          '</div>',
+          '<span style="color:var(--accent);font-size:0.8rem;font-weight:600">View &#8594;</span>',
+          '</div>',
+          productRows,
           '</div>'
         ].join('');
       }).join('');
 
       resultsEl.innerHTML = [
         '<div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:10px">',
-          keys.length + ' box' + (keys.length !== 1 ? 'es' : '') + ' matched',
+        keys.length + ' box' + (keys.length !== 1 ? 'es' : '') + ' matched',
         '</div>',
         html
       ].join('');
@@ -1506,16 +510,16 @@
       // Back button
       main.innerHTML = [
         '<button class="btn btn-outline no-print" onclick="window.location.href=\'/\'" style="min-height:40px;font-size:0.82rem;margin-bottom:12px;width:auto;padding:0 14px">',
-          '&#8592; Home',
+        '&#8592; Home',
         '</button>',
         '<div class="skeleton skel-box fade-in"></div>',
         '<div class="section-header no-print">',
-          '<span class="section-title">Products</span>',
+        '<span class="section-title">Products</span>',
         '</div>',
         '<div class="product-list">',
-          '<div class="skeleton skel-row" style="margin-bottom:10px"></div>',
-          '<div class="skeleton skel-row" style="margin-bottom:10px"></div>',
-          '<div class="skeleton skel-row" style="margin-bottom:10px"></div>',
+        '<div class="skeleton skel-row" style="margin-bottom:10px"></div>',
+        '<div class="skeleton skel-row" style="margin-bottom:10px"></div>',
+        '<div class="skeleton skel-row" style="margin-bottom:10px"></div>',
         '</div>'
       ].join('');
 
@@ -1529,12 +533,12 @@
         main.innerHTML = [
           '<button class="btn btn-outline no-print" onclick="window.location.href=\'/\'" style="min-height:40px;font-size:0.82rem;margin-bottom:12px;width:auto;padding:0 14px">&#8592; Home</button>',
           '<div class="error-banner fade-in">',
-            '<span style="font-size:1.3rem">&#9888;&#65039;</span>',
-            '<div>',
-              '<strong>Could not load box data</strong><br>',
-              '<span style="color:var(--text-dim)">' + escHtml(err.message) + '</span><br>',
-              '<small style="color:var(--text-dim);margin-top:4px;display:block">Make sure GAS_URL is set and deployed as "Anyone" accessible.</small>',
-            '</div>',
+          '<span style="font-size:1.3rem">&#9888;&#65039;</span>',
+          '<div>',
+          '<strong>Could not load box data</strong><br>',
+          '<span style="color:var(--text-dim)">' + escHtml(err.message) + '</span><br>',
+          '<small style="color:var(--text-dim);margin-top:4px;display:block">Make sure GAS_URL is set and deployed as "Anyone" accessible.</small>',
+          '</div>',
           '</div>',
           '<div style="height:12px"></div>',
           '<button class="btn btn-outline" onclick="initScanMode(\'' + escHtml(boxId) + '\')">&#8634; Retry</button>'
@@ -1553,8 +557,8 @@
       var rows = products.length === 0
         ? '<div class="empty-state fade-in"><div class="icon">&#128451;</div><p>No products in this box yet.<br>Tap &#43; to add the first one.</p></div>'
         : '<div class="product-list fade-in" id="product-list">' +
-          products.map(function (p, i) { return renderProductRow(p, i, false); }).join('') +
-          '</div>';
+        products.map(function (p, i) { return renderProductRow(p, i, false); }).join('') +
+        '</div>';
 
       var actionBar = '<div class="action-bar no-print" id="action-bar">' +
         (products.length > 0
@@ -1565,25 +569,25 @@
 
       main.innerHTML = [
         '<button class="btn btn-outline no-print" onclick="window.location.href=window.location.pathname" style="min-height:40px;font-size:0.82rem;margin-bottom:12px;width:auto;padding:0 14px">',
-          '&#8592; Home',
+        '&#8592; Home',
         '</button>',
         '<div class="box-hero fade-in">',
-          '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">',
-            '<div>',
-              '<div style="font-size:0.72rem;font-weight:600;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Box</div>',
-              '<div class="box-id">' + escHtml(boxId) + '</div>',
-            '</div>',
-            '<span class="badge badge-purple">&#128205; ' + escHtml(location) + '</span>',
-          '</div>',
-          '<div class="divider" style="margin:12px 0 10px"></div>',
-          '<div style="display:flex;gap:10px;flex-wrap:wrap">',
-            '<span class="badge badge-green">&#128230; ' + products.length + ' SKU' + (products.length !== 1 ? 's' : '') + '</span>',
-            '<span class="badge badge-amber">&#128336; ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</span>',
-          '</div>',
+        '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">',
+        '<div>',
+        '<div style="font-size:0.72rem;font-weight:600;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Box</div>',
+        '<div class="box-id">' + escHtml(boxId) + '</div>',
+        '</div>',
+        '<span class="badge badge-purple">&#128205; ' + escHtml(location) + '</span>',
+        '</div>',
+        '<div class="divider" style="margin:12px 0 10px"></div>',
+        '<div style="display:flex;gap:10px;flex-wrap:wrap">',
+        '<span class="badge badge-green">&#128230; ' + products.length + ' SKU' + (products.length !== 1 ? 's' : '') + '</span>',
+        '<span class="badge badge-amber">&#128336; ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</span>',
+        '</div>',
         '</div>',
         '<div class="section-header no-print">',
-          '<span class="section-title">Products</span>',
-          '<span style="font-size:0.75rem;color:var(--text-dim)">' + products.length + ' item' + (products.length !== 1 ? 's' : '') + '</span>',
+        '<span class="section-title">Products</span>',
+        '<span style="font-size:0.75rem;color:var(--text-dim)">' + products.length + ' item' + (products.length !== 1 ? 's' : '') + '</span>',
         '</div>',
         rows,
         actionBar
@@ -1613,26 +617,26 @@
       if (!editing) {
         return [
           '<div class="product-row" data-sku="' + escHtml(sku) + '" data-index="' + index + '">',
-            '<div class="product-info">',
-              '<div class="product-name">' + escHtml(name) + '</div>',
-              '<div class="product-sku">' + escHtml(sku) + '</div>',
-            '</div>',
-            '<div class="product-qty ' + cls + '">' + qty + '</div>',
+          '<div class="product-info">',
+          '<div class="product-name">' + escHtml(name) + '</div>',
+          '<div class="product-sku">' + escHtml(sku) + '</div>',
+          '</div>',
+          '<div class="product-qty ' + cls + '">' + qty + '</div>',
           '</div>'
         ].join('');
       }
 
       return [
         '<div class="product-row editing" data-sku="' + escHtml(sku) + '" data-index="' + index + '">',
-          '<div class="product-info">',
-            '<div class="product-name">' + escHtml(name) + '</div>',
-            '<div class="product-sku">' + escHtml(sku) + '</div>',
-          '</div>',
-          '<div class="product-counter">',
-            '<button class="btn btn-icon btn-dec" aria-label="Decrease ' + escHtml(name) + '" onclick="adjustDelta(\'' + escHtml(sku) + '\',' + index + ',-1)">&minus;</button>',
-            '<span class="counter-val ' + cls + '" id="counter-' + index + '">' + newQty + '</span>',
-            '<button class="btn btn-icon btn-inc" aria-label="Increase ' + escHtml(name) + '" onclick="adjustDelta(\'' + escHtml(sku) + '\',' + index + ',1)">+</button>',
-          '</div>',
+        '<div class="product-info">',
+        '<div class="product-name">' + escHtml(name) + '</div>',
+        '<div class="product-sku">' + escHtml(sku) + '</div>',
+        '</div>',
+        '<div class="product-counter">',
+        '<button class="btn btn-icon btn-dec" aria-label="Decrease ' + escHtml(name) + '" onclick="adjustDelta(\'' + escHtml(sku) + '\',' + index + ',-1)">&minus;</button>',
+        '<span class="counter-val ' + cls + '" id="counter-' + index + '">' + newQty + '</span>',
+        '<button class="btn btn-icon btn-inc" aria-label="Increase ' + escHtml(name) + '" onclick="adjustDelta(\'' + escHtml(sku) + '\',' + index + ',1)">+</button>',
+        '</div>',
         '</div>'
       ].join('');
     }
