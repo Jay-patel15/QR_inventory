@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="QR-based physical box inventory tracker — scan a QR code to view and update stock in real time." />
+  <title>BoxTrack · QR Inventory</title>
+
+  <!-- QR Code library (only external dependency) -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+  <style>
+    /* ─────────────────────────────────────────────
+       DESIGN TOKENS
+    ───────────────────────────────────────────── */
+    :root {
+      --bg:          #0f172a;
+      --surface:     #1e293b;
+      --surface-2:   #273449;
+      --border:      #334155;
+      --accent:      #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.35);
+      --accent-dark: #4f46e5;
+      --green:       #22c55e;
+      --green-dark:  #16a34a;
+      --red:         #ef4444;
+      --red-dark:    #dc2626;
+      --amber:       #f59e0b;
+      --text:        #f1f5f9;
+      --text-muted:  #94a3b8;
+      --text-dim:    #64748b;
+      --radius-sm:   8px;
+      --radius:      14px;
+      --radius-lg:   20px;
+      --shadow:      0 4px 24px rgba(0,0,0,0.45);
+      --shadow-sm:   0 2px 8px rgba(0,0,0,0.3);
+      --font:        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      --transition:  150ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ─────────────────────────────────────────────
+       RESET & BASE
+    ───────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100svh;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      overscroll-behavior: none;
+    }
+
+    /* ─────────────────────────────────────────────
+       LAYOUT
+    ───────────────────────────────────────────── */
+    #app {
+      max-width: 540px;
+      margin: 0 auto;
+      padding: 0 16px 96px;
+    }
+
+    /* ─────────────────────────────────────────────
+       HEADER
+    ───────────────────────────────────────────── */
+    .app-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 20px 0 24px;
+    }
+
+    .app-logo {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, var(--accent), #818cf8);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+      box-shadow: 0 0 18px var(--accent-glow);
+    }
+
+    .app-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .app-subtitle {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    /* ─────────────────────────────────────────────
+       CARD
+    ───────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .card-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    /* ─────────────────────────────────────────────
+       BADGE
+    ───────────────────────────────────────────── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 20px;
+      letter-spacing: 0.03em;
+    }
+
+    .badge-purple { background: rgba(99,102,241,0.18); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
+    .badge-green  { background: rgba(34,197,94,0.15);  color: #86efac;  border: 1px solid rgba(34,197,94,0.25); }
+    .badge-amber  { background: rgba(245,158,11,0.15); color: #fcd34d;  border: 1px solid rgba(245,158,11,0.25);}
+
+    /* ─────────────────────────────────────────────
+       BUTTONS
+    ───────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 48px;
+      padding: 0 20px;
+      border-radius: var(--radius);
+      font-family: var(--font);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      outline: none;
+      transition: transform var(--transition), box-shadow var(--transition), background var(--transition);
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    .btn:active { transform: scale(0.97); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #818cf8);
+      color: #fff;
+      width: 100%;
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+    .btn-primary:hover { box-shadow: 0 0 30px var(--accent-glow); }
+
+    .btn-success {
+      background: linear-gradient(135deg, var(--green), #4ade80);
+      color: #052e16;
+      width: 100%;
+      box-shadow: 0 0 16px rgba(34,197,94,0.3);
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      width: 100%;
+    }
+    .btn-outline:hover { background: var(--surface-2); color: var(--text); }
+
+    .btn-sm {
+      min-height: 44px;
+      padding: 0 14px;
+      font-size: 0.85rem;
+    }
+
+    .btn-icon {
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      border-radius: 50%;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    .btn-inc  { background: rgba(34,197,94,0.18);  color: var(--green);  border: 1px solid rgba(34,197,94,0.3);  }
+    .btn-dec  { background: rgba(239,68,68,0.15);  color: var(--red);    border: 1px solid rgba(239,68,68,0.25); }
+    .btn-inc:hover { background: rgba(34,197,94,0.3); }
+    .btn-dec:hover { background: rgba(239,68,68,0.28); }
+
+    /* ─────────────────────────────────────────────
+       INPUT
+    ───────────────────────────────────────────── */
+    .input-wrap {
+      position: relative;
+      margin-bottom: 16px;
+    }
+
+    .input-label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .input-field {
+      width: 100%;
+      height: 52px;
+      background: var(--surface-2);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 0 16px;
+      outline: none;
+      transition: border-color var(--transition), box-shadow var(--transition);
+      letter-spacing: 0.04em;
+    }
+
+    .input-field::placeholder { color: var(--text-dim); font-weight: 400; }
+    .input-field:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    /* ─────────────────────────────────────────────
+       BOX INFO BAR
+    ───────────────────────────────────────────── */
+    .box-hero {
+      background: linear-gradient(135deg, #1e293b 0%, #0f2040 100%);
+      border: 1px solid rgba(99,102,241,0.3);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .box-hero::before {
+      content: '';
+      position: absolute;
+      top: -40px; right: -40px;
+      width: 130px; height: 130px;
+      background: radial-gradient(circle, rgba(99,102,241,0.25) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .box-id {
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #e0e7ff, #a5b4fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .box-location {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-top: 6px;
+    }
+
+    /* ─────────────────────────────────────────────
+       PRODUCT ROW
+    ───────────────────────────────────────────── */
+    .product-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .product-row {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: border-color var(--transition);
+    }
+
+    .product-row.editing { border-color: var(--accent); }
+
+    .product-info { flex: 1; min-width: 0; }
+
+    .product-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .product-sku {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+      font-family: 'Courier New', monospace;
+    }
+
+    .product-qty {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      min-width: 36px;
+      text-align: right;
+    }
+
+    .product-qty.low  { color: var(--amber); }
+    .product-qty.zero { color: var(--red); }
+
+    /* COUNTER (edit mode) */
+    .product-counter {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: fadeSlideIn 200ms ease;
+    }
+
+    .counter-val {
+      font-size: 1.3rem;
+      font-weight: 800;
+      min-width: 40px;
+      text-align: center;
+      letter-spacing: -0.02em;
+    }
+
+    /* ─────────────────────────────────────────────
+       QR SECTION
+    ───────────────────────────────────────────── */
+    .qr-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    #qrcode-output {
+      background: #fff;
+      border-radius: var(--radius);
+      padding: 16px;
+      display: inline-block;
+      box-shadow: 0 0 40px rgba(99,102,241,0.2);
+    }
+
+    #qrcode-output canvas,
+    #qrcode-output img { display: block; }
+
+    .qr-label-info {
+      text-align: center;
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--text);
+      margin-top: 4px;
+    }
+
+    .qr-url-hint {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      text-align: center;
+      word-break: break-all;
+      max-width: 280px;
+    }
+
+    /* ─────────────────────────────────────────────
+       SKELETON LOADER
+    ───────────────────────────────────────────── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: var(--radius-sm);
+    }
+
+    .skel-box  { height: 90px; margin-bottom: 16px; border-radius: var(--radius-lg); }
+    .skel-row  { height: 72px; border-radius: var(--radius); }
+
+    /* ─────────────────────────────────────────────
+       TOAST
+    ───────────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(120px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 500;
+      padding: 12px 20px;
+      border-radius: 40px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+      transition: transform 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
+      z-index: 999;
+      pointer-events: none;
+    }
+
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.success { border-color: rgba(34,197,94,0.4); }
+    #toast.error   { border-color: rgba(239,68,68,0.4); }
+
+    /* ─────────────────────────────────────────────
+       EMPTY STATE
+    ───────────────────────────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-dim);
+    }
+
+    .empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+    .empty-state p { font-size: 0.9rem; }
+
+    /* ─────────────────────────────────────────────
+       STICKY ACTION BAR
+    ───────────────────────────────────────────── */
+    .action-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0; right: 0;
+      background: rgba(15,23,42,0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border);
+      padding: 12px 16px;
+      padding-bottom: calc(12px + env(safe-area-inset-bottom));
+      display: flex;
+      gap: 10px;
+      z-index: 100;
+    }
+
+    /* ─────────────────────────────────────────────
+       ANIMATIONS
+    ───────────────────────────────────────────── */
+    @keyframes shimmer {
+      to { background-position: -200% 0; }
+    }
+
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateX(10px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .fade-in { animation: fadeIn 300ms ease both; }
+
+    /* ─────────────────────────────────────────────
+       DIVIDER
+    ───────────────────────────────────────────── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 16px 0;
+    }
+
+    /* ─────────────────────────────────────────────
+       PRINT STYLES
+    ───────────────────────────────────────────── */
+    @media print {
+      body { background: #fff; color: #000; padding: 0; margin: 0; }
+      #app { padding: 0; max-width: none; }
+      .no-print { display: none !important; }
+      .print-only { display: flex !important; }
+      .print-label {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 62mm;
+        height: 38mm;
+        padding: 4mm;
+        border: 1.5px solid #000;
+        border-radius: 3mm;
+        page-break-after: avoid;
+      }
+      .print-label canvas,
+      .print-label img { width: 26mm !important; height: 26mm !important; }
+      .print-label .print-box-id {
+        font-family: sans-serif;
+        font-size: 9pt;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        margin-top: 3mm;
+      }
+    }
+
+    .print-only { display: none; }
+
+    /* ─────────────────────────────────────────────
+       SECTION HEADER
+    ───────────────────────────────────────────── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+    }
+
+    /* ─────────────────────────────────────────────
+       SPIN
+    ───────────────────────────────────────────── */
+    .spin {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─────────────────────────────────────────────
+       ERROR BANNER
+    ───────────────────────────────────────────── */
+    .error-banner {
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      font-size: 0.88rem;
+      color: #fca5a5;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Header (always visible) -->
+  <header class="app-header no-print">
+    <div class="app-logo">&#128230;</div>
+    <div>
+      <div class="app-title">BoxTrack</div>
+      <div class="app-subtitle">QR Inventory System</div>
+    </div>
+  </header>
+
+  <!-- Dynamic content rendered by JS -->
+  <main id="main"></main>
+</div>
+
+<!-- Toast notification -->
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* =====================================================
+   CONFIG
+   Update GAS_URL after deploying your Google Apps Script.
+   ===================================================== */
+const CONFIG = {
+  GAS_URL: 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec',
+  LOW_STOCK_THRESHOLD: 5,
+};
+
+/* =====================================================
+   UTILS
+   ===================================================== */
+const $ = (sel, ctx) => (ctx || document).querySelector(sel);
+const $$ = (sel, ctx) => [...(ctx || document).querySelectorAll(sel)];
+
+function getParam(key) {
+  return new URLSearchParams(window.location.search).get(key);
+}
+
+let toastTimer = null;
+function toast(msg, type) {
+  type = type || 'info';
+  const el = $('#toast');
+  const icons = { success: '&#10003;', error: '&#10007;', info: 'i', loading: '...' };
+  el.innerHTML = '<span>' + (icons[type] || 'i') + '</span><span>' + msg + '</span>';
+  el.className = 'show ' + type;
+  clearTimeout(toastTimer);
+  if (type !== 'loading') {
+    toastTimer = setTimeout(function() { el.className = ''; }, 3000);
+  }
+}
+
+function qtyClass(qty) {
+  if (qty === 0) return 'zero';
+  if (qty <= CONFIG.LOW_STOCK_THRESHOLD) return 'low';
+  return '';
+}
+
+function escHtml(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/* =====================================================
+   SCAN MODE
+   ===================================================== */
+async function initScanMode(boxId) {
+  var main = $('#main');
+  main.innerHTML = [
+    '<div class="skeleton skel-box fade-in"></div>',
+    '<div class="section-header no-print">',
+      '<span class="section-title">Products</span>',
+    '</div>',
+    '<div class="product-list">',
+      '<div class="skeleton skel-row" style="margin-bottom:10px"></div>',
+      '<div class="skeleton skel-row" style="margin-bottom:10px"></div>',
+      '<div class="skeleton skel-row" style="margin-bottom:10px"></div>',
+    '</div>'
+  ].join('');
+
+  var boxData;
+  try {
+    var res = await fetch(CONFIG.GAS_URL + '?box=' + encodeURIComponent(boxId));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    boxData = await res.json();
+    if (boxData.error) throw new Error(boxData.error);
+  } catch (err) {
+    main.innerHTML = [
+      '<div class="error-banner fade-in">',
+        '<span style="font-size:1.3rem">&#9888;&#65039;</span>',
+        '<div>',
+          '<strong>Could not load box data</strong><br>',
+          '<span style="color:var(--text-dim)">' + escHtml(err.message) + '</span><br>',
+          '<small style="color:var(--text-dim);margin-top:4px;display:block">',
+            'Make sure your GAS_URL is set and the Apps Script is deployed as "Anyone" accessible.',
+          '</small>',
+        '</div>',
+      '</div>',
+      '<div style="height:16px"></div>',
+      '<button class="btn btn-outline" onclick="initScanMode(\'' + escHtml(boxId) + '\')">&#8634; Retry</button>'
+    ].join('');
+    return;
+  }
+
+  renderScanView(boxId, boxData);
+}
+
+function renderScanView(boxId, boxData) {
+  var main = $('#main');
+  var location = boxData.location || '\u2014';
+  var products = boxData.products || [];
+
+  var rows = products.length === 0
+    ? '<div class="empty-state fade-in"><div class="icon">&#128451;</div><p>No products in this box yet.</p></div>'
+    : '<div class="product-list fade-in" id="product-list">' +
+        products.map(function(p, i) { return renderProductRow(p, i, false); }).join('') +
+      '</div>';
+
+  var actionBar = products.length > 0
+    ? '<div class="action-bar no-print" id="action-bar">' +
+        '<button class="btn btn-primary" id="checkout-btn" onclick="enterEditMode()">' +
+          '&#9998; Checkout / Update Stock' +
+        '</button>' +
+      '</div>'
+    : '';
+
+  main.innerHTML = [
+    '<div class="box-hero fade-in">',
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">',
+        '<div>',
+          '<div style="font-size:0.72rem;font-weight:600;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Box</div>',
+          '<div class="box-id">' + escHtml(boxId) + '</div>',
+        '</div>',
+        '<span class="badge badge-purple">&#128205; ' + escHtml(location) + '</span>',
+      '</div>',
+      '<div class="divider" style="margin:12px 0 10px"></div>',
+      '<div style="display:flex;gap:10px;flex-wrap:wrap">',
+        '<span class="badge badge-green">&#128230; ' + products.length + ' SKU' + (products.length !== 1 ? 's' : '') + '</span>',
+        '<span class="badge badge-amber">&#128336; ' + new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) + '</span>',
+      '</div>',
+    '</div>',
+    '<div class="section-header no-print">',
+      '<span class="section-title">Products</span>',
+      '<span style="font-size:0.75rem;color:var(--text-dim)">' + products.length + ' item' + (products.length !== 1 ? 's' : '') + '</span>',
+    '</div>',
+    rows,
+    actionBar
+  ].join('');
+
+  window._boxData = { boxId: boxId, location: location, products: products.map(function(p) { return Object.assign({}, p); }) };
+  window._editing = false;
+  window._deltas = {};
+}
+
+function renderProductRow(product, index, editing) {
+  var name = product.name;
+  var sku = product.sku;
+  var qty = product.qty;
+  var delta = (window._deltas || {})[sku] || 0;
+  var newQty = qty + delta;
+  var cls = qtyClass(newQty);
+
+  if (!editing) {
+    return [
+      '<div class="product-row" data-sku="' + escHtml(sku) + '" data-index="' + index + '">',
+        '<div class="product-info">',
+          '<div class="product-name">' + escHtml(name) + '</div>',
+          '<div class="product-sku">' + escHtml(sku) + '</div>',
+        '</div>',
+        '<div class="product-qty ' + cls + '">' + qty + '</div>',
+      '</div>'
+    ].join('');
+  }
+
+  return [
+    '<div class="product-row editing" data-sku="' + escHtml(sku) + '" data-index="' + index + '">',
+      '<div class="product-info">',
+        '<div class="product-name">' + escHtml(name) + '</div>',
+        '<div class="product-sku">' + escHtml(sku) + '</div>',
+      '</div>',
+      '<div class="product-counter">',
+        '<button class="btn btn-icon btn-dec" aria-label="Decrease ' + escHtml(name) + '"',
+          ' onclick="adjustDelta(\'' + escHtml(sku) + '\',' + index + ',-1)">&minus;</button>',
+        '<span class="counter-val ' + cls + '" id="counter-' + index + '">' + newQty + '</span>',
+        '<button class="btn btn-icon btn-inc" aria-label="Increase ' + escHtml(name) + '"',
+          ' onclick="adjustDelta(\'' + escHtml(sku) + '\',' + index + ',1)">+</button>',
+      '</div>',
+    '</div>'
+  ].join('');
+}
+
+function enterEditMode() {
+  window._editing = true;
+  window._deltas = {};
+  refreshProductList();
+  var bar = $('#action-bar');
+  if (bar) {
+    bar.innerHTML = [
+      '<button class="btn btn-outline" onclick="cancelEdit()">&#10005; Cancel</button>',
+      '<button class="btn btn-success" id="confirm-btn" onclick="confirmChanges()">',
+        '&#10003; Confirm Changes',
+      '</button>'
+    ].join('');
+  }
+}
+
+function cancelEdit() {
+  window._editing = false;
+  window._deltas = {};
+  refreshProductList();
+  var bar = $('#action-bar');
+  if (bar) {
+    bar.innerHTML = [
+      '<button class="btn btn-primary" id="checkout-btn" onclick="enterEditMode()">',
+        '&#9998; Checkout / Update Stock',
+      '</button>'
+    ].join('');
+  }
+}
+
+function refreshProductList() {
+  var list = $('#product-list');
+  if (!list) return;
+  var products = window._boxData.products;
+  list.innerHTML = products.map(function(p, i) { return renderProductRow(p, i, window._editing); }).join('');
+}
+
+function adjustDelta(sku, index, dir) {
+  if (!window._deltas) window._deltas = {};
+  var product = window._boxData.products[index];
+  var current = window._deltas[sku] || 0;
+  var newDelta = current + dir;
+  var newQty = product.qty + newDelta;
+  if (newQty < 0) return;
+
+  window._deltas[sku] = newDelta;
+
+  var counterEl = $('#counter-' + index);
+  if (counterEl) {
+    counterEl.textContent = newQty;
+    counterEl.className = 'counter-val ' + qtyClass(newQty);
+  }
+}
+
+async function confirmChanges() {
+  var boxId = window._boxData.boxId;
+  var products = window._boxData.products;
+  var deltas = window._deltas || {};
+
+  var updates = products
+    .filter(function(p) { return deltas[p.sku] && deltas[p.sku] !== 0; })
+    .map(function(p) { return { sku: p.sku, name: p.name, newQty: p.qty + (deltas[p.sku] || 0) }; });
+
+  if (updates.length === 0) {
+    toast('No changes to save', 'info');
+    return;
+  }
+
+  var btn = $('#confirm-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span> Saving&hellip;';
+  }
+  toast('Saving changes&hellip;', 'loading');
+
+  try {
+    var res = await fetch(CONFIG.GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ boxId: boxId, updates: updates }),
+    });
+
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var result = await res.json();
+    if (result.error) throw new Error(result.error);
+
+    products.forEach(function(p) {
+      if (deltas[p.sku]) p.qty += deltas[p.sku];
+    });
+
+    toast(updates.length + ' item' + (updates.length > 1 ? 's' : '') + ' updated', 'success');
+    cancelEdit();
+  } catch (err) {
+    toast('Error: ' + err.message, 'error');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '&#10003; Confirm Changes';
+    }
+  }
+}
+
+/* =====================================================
+   GENERATOR MODE
+   ===================================================== */
+function initGeneratorMode() {
+  var main = $('#main');
+  main.innerHTML = [
+    '<div class="card fade-in">',
+      '<div class="card-title">Generate Box QR Code</div>',
+      '<div class="input-wrap">',
+        '<label class="input-label" for="box-id-input">Box ID</label>',
+        '<input class="input-field" id="box-id-input" type="text"',
+          ' placeholder="e.g. BOX-01" autocomplete="off" autocorrect="off"',
+          ' autocapitalize="characters" spellcheck="false" maxlength="32" />',
+      '</div>',
+      '<button class="btn btn-primary" onclick="generateQR()">&#9889; Generate QR Code</button>',
+    '</div>',
+
+    '<div id="qr-result" style="display:none">',
+      '<div class="card">',
+        '<div class="qr-wrap">',
+          '<div id="qrcode-output"></div>',
+          '<div class="qr-label-info" id="qr-box-label"></div>',
+          '<div class="qr-url-hint" id="qr-url-hint"></div>',
+        '</div>',
+      '</div>',
+      '<button class="btn btn-outline no-print" onclick="printLabel()" style="margin-bottom:10px">',
+        '&#128424; Print QR Label',
+      '</button>',
+    '</div>',
+
+    '<!-- Print-only label (62x38mm format) -->',
+    '<div id="print-label" class="print-label" style="display:none">',
+      '<div id="qrcode-print"></div>',
+      '<div class="print-box-id" id="print-box-id-text"></div>',
+    '</div>'
+  ].join('');
+
+  $('#box-id-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') generateQR();
+  });
+}
+
+var _currentQR = null;
+
+function generateQR() {
+  var input = $('#box-id-input');
+  var rawId = input.value.trim().toUpperCase();
+
+  if (!rawId) {
+    input.focus();
+    toast('Please enter a Box ID', 'error');
+    return;
+  }
+
+  var url = window.location.origin + window.location.pathname + '?box=' + encodeURIComponent(rawId);
+  var outputEl = $('#qrcode-output');
+  outputEl.innerHTML = '';
+
+  if (_currentQR) {
+    try { _currentQR.clear(); } catch(e) {}
+  }
+
+  _currentQR = new QRCode(outputEl, {
+    text: url,
+    width: 200,
+    height: 200,
+    colorDark: '#000000',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M,
+  });
+
+  $('#qr-box-label').textContent = rawId;
+  $('#qr-url-hint').textContent = url;
+
+  var resultEl = $('#qr-result');
+  resultEl.style.display = 'block';
+  resultEl.classList.add('fade-in');
+
+  setTimeout(function() {
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 50);
+}
+
+function printLabel() {
+  var input = $('#box-id-input');
+  if (!input) return;
+  var boxId = input.value.trim().toUpperCase();
+  if (!boxId) return;
+
+  var url = window.location.origin + window.location.pathname + '?box=' + encodeURIComponent(boxId);
+  var printEl = $('#qrcode-print');
+  var printLabel = $('#print-label');
+
+  printEl.innerHTML = '';
+  printLabel.style.display = 'flex';
+
+  new QRCode(printEl, {
+    text: url,
+    width: 98,
+    height: 98,
+    colorDark: '#000000',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.H,
+  });
+
+  $('#print-box-id-text').textContent = boxId;
+
+  setTimeout(function() { window.print(); }, 250);
+}
+
+/* =====================================================
+   ROUTER
+   ===================================================== */
+function route() {
+  var boxId = getParam('box');
+  if (boxId) {
+    document.title = boxId + ' \u00B7 BoxTrack';
+    initScanMode(boxId.toUpperCase());
+  } else {
+    initGeneratorMode();
+  }
+}
+
+route();
+</script>
+</body>
+</html>
