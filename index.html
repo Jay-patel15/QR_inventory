@@ -37,11 +37,6 @@
     <div class="sheet-subtitle" id="sheet-box-label">Adding to BOX-01</div>
 
     <div class="input-wrap">
-      <label class="input-label" for="ap-sku">SKU / Product ID</label>
-      <input class="input-field" id="ap-sku" type="text" placeholder="e.g. SKU-1004" autocomplete="off"
-        autocorrect="off" autocapitalize="characters" spellcheck="false" maxlength="32" />
-    </div>
-    <div class="input-wrap">
       <label class="input-label" for="ap-name">Product Name</label>
       <input class="input-field" id="ap-name" type="text" placeholder="e.g. Widget Gamma" autocomplete="off"
         spellcheck="false" maxlength="64" />
@@ -71,7 +66,7 @@
        CONFIG  — replace with your deployed GAS URL
     ───────────────────────────────────────────── */
     const CONFIG = {
-      GAS_URL: 'https://script.google.com/macros/s/AKfycbzC6qw1D775TwHFMTRPR_3H7ihxyJ6rknWxswU1IbyQTM6XFJH6OCDApmlJAiccwRfW/exec',
+      GAS_URL: 'https://script.google.com/macros/s/AKfycby4WtnFJFv8VYUvIt4G8cctEjpTsSXAp4KhE8pbnp28tyTJYmApF_Z0UkUviQOfCZ4/exec',
       LOW_STOCK_THRESHOLD: 5,
     };
 
@@ -394,7 +389,7 @@
         '<div class="search-wrap fade-in">',
         '<span class="search-icon">&#128269;</span>',
         '<input class="search-field" id="search-input" type="search"',
-        ' placeholder="Search products, SKUs, boxes\u2026" autocomplete="off" />',
+        ' placeholder="Search products, boxes\u2026" autocomplete="off" />',
         '</div>',
         '<div id="search-results">',
         '<div class="empty-state" style="padding:32px 0">',
@@ -444,11 +439,10 @@
       // Group results by box
       var boxMap = {};
       _allInventory.forEach(function (row) {
-        var matchBox = row.boxId.toLowerCase().includes(q);
-        var matchSku = row.sku.toLowerCase().includes(q);
-        var matchName = row.name.toLowerCase().includes(q);
+        var matchBox = (row.boxId || '').toLowerCase().includes(q);
+        var matchName = (row.name || '').toLowerCase().includes(q);
         var matchLoc = (row.location || '').toLowerCase().includes(q);
-        if (matchBox || matchSku || matchName || matchLoc) {
+        if (matchBox || matchName || matchLoc) {
           if (!boxMap[row.boxId]) boxMap[row.boxId] = { location: row.location, products: [] };
           boxMap[row.boxId].products.push(row);
         }
@@ -467,8 +461,7 @@
           return [
             '<div class="search-result-product">',
             '<div style="flex:1;min-width:0">',
-            '<div style="font-size:0.9rem;font-weight:600">' + highlightMatch(p.name, query) + '</div>',
-            '<div style="font-size:0.73rem;color:var(--text-muted);font-family:monospace">' + highlightMatch(p.sku, query) + '</div>',
+            '<div style="font-size:0.95rem;font-weight:600">' + highlightMatch(p.name, query) + '</div>',
             '</div>',
             '<div class="product-qty ' + cls + '" style="font-size:1.1rem">' + p.qty + '</div>',
             '</div>'
@@ -581,7 +574,7 @@
         '</div>',
         '<div class="divider" style="margin:12px 0 10px"></div>',
         '<div style="display:flex;gap:10px;flex-wrap:wrap">',
-        '<span class="badge badge-green">&#128230; ' + products.length + ' SKU' + (products.length !== 1 ? 's' : '') + '</span>',
+        '<span class="badge badge-green">&#128230; ' + products.length + ' Product' + (products.length !== 1 ? 's' : '') + '</span>',
         '<span class="badge badge-amber">&#128336; ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</span>',
         '</div>',
         '</div>',
@@ -609,17 +602,16 @@
 
     /* ─── Product rows ─── */
     function renderProductRow(product, index, editing) {
-      var name = product.name, sku = product.sku, qty = product.qty;
-      var delta = (window._deltas || {})[sku] || 0;
+      var name = product.name, qty = product.qty;
+      var delta = (window._deltas || {})[index] || 0;
       var newQty = qty + delta;
       var cls = qtyClass(newQty);
 
       if (!editing) {
         return [
-          '<div class="product-row" data-sku="' + escHtml(sku) + '" data-index="' + index + '">',
+          '<div class="product-row" data-index="' + index + '">',
           '<div class="product-info">',
           '<div class="product-name">' + escHtml(name) + '</div>',
-          '<div class="product-sku">' + escHtml(sku) + '</div>',
           '</div>',
           '<div class="product-qty ' + cls + '">' + qty + '</div>',
           '</div>'
@@ -627,15 +619,14 @@
       }
 
       return [
-        '<div class="product-row editing" data-sku="' + escHtml(sku) + '" data-index="' + index + '">',
+        '<div class="product-row editing" data-index="' + index + '">',
         '<div class="product-info">',
         '<div class="product-name">' + escHtml(name) + '</div>',
-        '<div class="product-sku">' + escHtml(sku) + '</div>',
         '</div>',
         '<div class="product-counter">',
-        '<button class="btn btn-icon btn-dec" aria-label="Decrease ' + escHtml(name) + '" onclick="adjustDelta(\'' + escHtml(sku) + '\',' + index + ',-1)">&minus;</button>',
+        '<button class="btn btn-icon btn-dec" aria-label="Decrease ' + escHtml(name) + '" onclick="adjustDelta(' + index + ',-1)">&minus;</button>',
         '<span class="counter-val ' + cls + '" id="counter-' + index + '">' + newQty + '</span>',
-        '<button class="btn btn-icon btn-inc" aria-label="Increase ' + escHtml(name) + '" onclick="adjustDelta(\'' + escHtml(sku) + '\',' + index + ',1)">+</button>',
+        '<button class="btn btn-icon btn-inc" aria-label="Increase ' + escHtml(name) + '" onclick="adjustDelta(' + index + ',1)">+</button>',
         '</div>',
         '</div>'
       ].join('');
@@ -670,13 +661,13 @@
       list.innerHTML = window._boxData.products.map(function (p, i) { return renderProductRow(p, i, window._editing); }).join('');
     }
 
-    function adjustDelta(sku, index, dir) {
+    function adjustDelta(index, dir) {
       if (!window._deltas) window._deltas = {};
       var product = window._boxData.products[index];
-      var newDelta = (window._deltas[sku] || 0) + dir;
+      var newDelta = (window._deltas[index] || 0) + dir;
       var newQty = product.qty + newDelta;
       if (newQty < 0) return;
-      window._deltas[sku] = newDelta;
+      window._deltas[index] = newDelta;
       var counterEl = $('#counter-' + index);
       if (counterEl) { counterEl.textContent = newQty; counterEl.className = 'counter-val ' + qtyClass(newQty); }
     }
@@ -685,9 +676,12 @@
       var boxId = window._boxData.boxId;
       var products = window._boxData.products;
       var deltas = window._deltas || {};
-      var updates = products
-        .filter(function (p) { return deltas[p.sku] && deltas[p.sku] !== 0; })
-        .map(function (p) { return { sku: p.sku, name: p.name, newQty: p.qty + (deltas[p.sku] || 0) }; });
+      var updates = [];
+      products.forEach(function (p, i) {
+        if (deltas[i] && deltas[i] !== 0) {
+          updates.push({ name: p.name, newQty: p.qty + deltas[i] });
+        }
+      });
 
       if (updates.length === 0) { toast('No changes to save', 'info'); return; }
 
@@ -705,7 +699,7 @@
         var result = await res.json();
         if (result.error) throw new Error(result.error);
 
-        products.forEach(function (p) { if (deltas[p.sku]) p.qty += deltas[p.sku]; });
+        products.forEach(function (p, i) { if (deltas[i]) p.qty += deltas[i]; });
         _allInventory = null; // invalidate search cache
         toast(updates.length + ' item' + (updates.length > 1 ? 's' : '') + ' updated', 'success');
         cancelEdit();
@@ -722,27 +716,26 @@
 
     function openAddProductSheet(boxId, location) {
       _addProductBoxId = boxId;
-      $('#sheet-box-label').textContent = 'Adding to ' + boxId + ' \u2022 ' + location;
-      $('#ap-sku').value = '';
+      $('#sheet-box-label').textContent = 'Adding to ' + boxId + (location ? ' \u2022 ' + location : '');
       $('#ap-name').value = '';
       $('#ap-qty').value = '0';
       openModal('add-product-sheet');
-      setTimeout(function () { $('#ap-sku').focus(); }, 350);
+      setTimeout(function () { $('#ap-name').focus(); }, 350);
     }
 
     async function submitAddProduct() {
-      var sku = $('#ap-sku').value.trim().toUpperCase();
       var name = $('#ap-name').value.trim();
       var qty = parseInt($('#ap-qty').value, 10);
 
-      if (!sku) { $('#ap-sku').focus(); toast('SKU is required', 'error'); return; }
       if (!name) { $('#ap-name').focus(); toast('Product name is required', 'error'); return; }
       if (isNaN(qty) || qty < 0) { $('#ap-qty').focus(); toast('Enter a valid quantity', 'error'); return; }
 
-      // Check for duplicate SKU
+      // Check for duplicate product name in this box
       if (window._boxData) {
-        var existing = window._boxData.products.find(function (p) { return p.sku === sku; });
-        if (existing) { toast('SKU ' + sku + ' already exists in this box', 'error'); return; }
+        var existing = window._boxData.products.find(function (p) {
+          return p.name.toLowerCase() === name.toLowerCase();
+        });
+        if (existing) { toast('Product "' + name + '" already exists in this box', 'error'); return; }
       }
 
       var btn = $('#ap-submit-btn');
@@ -758,7 +751,6 @@
             action: 'addProduct',
             boxId: _addProductBoxId,
             location: window._boxData ? window._boxData.location : '',
-            sku: sku,
             name: name,
             qty: qty,
           }),
@@ -769,11 +761,11 @@
 
         // Optimistically add to local product list
         if (window._boxData) {
-          window._boxData.products.push({ sku: sku, name: name, qty: qty });
+          window._boxData.products.push({ name: name, qty: qty });
           refreshProductList();
-          // Update badges
+          // Update badge
           var badge = document.querySelector('.badge-green');
-          if (badge) badge.innerHTML = '&#128230; ' + window._boxData.products.length + ' SKUs';
+          if (badge) badge.innerHTML = '&#128230; ' + window._boxData.products.length + ' Product' + (window._boxData.products.length !== 1 ? 's' : '');
         }
 
         _allInventory = null; // invalidate search cache
